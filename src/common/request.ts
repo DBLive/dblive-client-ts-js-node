@@ -78,12 +78,7 @@ export class DBLiveRequest
 				...params,
 			})
 
-			if (response.status === 200) {
-				this.logger.debug(`${url} responded`)
-			}
-			else {
-				this.logger.error(`${url} responded with non-200 status: ${response.status}`)
-			}
+			this.logger.debug(`${url} responded with status code: ${response.status}`)
 
 			return response
 		}

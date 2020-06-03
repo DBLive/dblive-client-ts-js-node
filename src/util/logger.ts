@@ -9,7 +9,7 @@ export enum DBLiveLoggerLevel
 
 export class DBLiveLogger
 {
-	static logLevel = DBLiveLoggerLevel.debug
+	static logLevel = DBLiveLoggerLevel.error
 
 	private _logLevel?: DBLiveLoggerLevel
 	get logLevel(): DBLiveLoggerLevel {
@@ -39,10 +39,10 @@ export class DBLiveLogger
 	private commitLog(message: string, level: DBLiveLoggerLevel, ...optionalParams: any[]): void {
 		if (this.doLog(level)) {
 			if (level === DBLiveLoggerLevel.error) {
-				console.error(`${this.name} ${level.toString().toUpperCase()}: ${message}`, ...optionalParams)
+				console.error(`${this.name} ${DBLiveLoggerLevel[level].toUpperCase()}: ${message}`, ...optionalParams)
 			}
 			else {
-				console.log(`${this.name} ${level.toString().toUpperCase()}: ${message}`, ...optionalParams)
+				console.log(`${this.name} ${DBLiveLoggerLevel[level].toUpperCase()}: ${message}`, ...optionalParams)
 			}
 		}
 	}

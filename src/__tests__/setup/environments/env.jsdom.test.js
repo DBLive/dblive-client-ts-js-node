@@ -1,9 +1,7 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
-// const NodeEnvironment = require("jest-environment-node")
-/* eslint-disable @typescript-eslint/no-var-requires */
 const JsDomEnvironment = require("jest-environment-jsdom")
 
-class TestEnvironment extends JsDomEnvironment
+class TestJsDomEnvironment extends JsDomEnvironment
 {
 	async setup() {
 		await super.setup()
@@ -13,4 +11,4 @@ class TestEnvironment extends JsDomEnvironment
 	}
 }
 
-module.exports = TestEnvironment
+module.exports = TestJsDomEnvironment

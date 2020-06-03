@@ -121,7 +121,7 @@ export class DBLiveSocket
 					return
 				}
 
-				this.client.handleEvent("connect")
+				this.client.handleEvent("socket-connected")
 				this.client.socket = this
 			},
 		)

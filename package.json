@@ -5,9 +5,15 @@
   "main": "./dist/index.js",
   "scripts": {
     "build": "tsc",
+    "build:npm": "npm run prebuild && tsc -p ./tsconfig.npm.json",
     "clearbuild": "npm run cleardist",
     "cleardist": "rm -r -f dist",
-    "test": "jest --runInBand"
+    "eslint": "eslint 'src/**'",
+    "prebuild": "npm run cleardist",
+    "prepublishOnly": "npm run build:npm",
+    "pretest": "npm run eslint",
+    "test": "jest",
+    "test:node": "npm run pretest && jest --config=./jest.config.node.js"
   },
   "repository": {
     "type": "git",
@@ -21,14 +27,14 @@
   "homepage": "https://github.com/DBLive/dblive-client-ts-js-node#readme",
   "devDependencies": {
     "@types/jest": "^25.2.3",
-    "@typescript-eslint/eslint-plugin": "^3.0.2",
-    "@typescript-eslint/parser": "^3.0.2",
+    "@typescript-eslint/eslint-plugin": "^3.1.0",
+    "@typescript-eslint/parser": "^3.1.0",
     "eslint": "^7.1.0",
     "eslint-plugin-sort-class-members": "^1.7.0",
     "jest": "^26.0.1",
     "jest-cli": "^26.0.1",
     "node-fetch": "^2.6.0",
-    "ts-jest": "^26.0.0",
+    "ts-jest": "^26.1.0",
     "typescript": "^3.9.3"
   },
   "dependencies": {

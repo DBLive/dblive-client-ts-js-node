@@ -89,8 +89,9 @@ export class DBLiveClient
 		this.connectSocket(`https://${initResult.socketDomain}/`, initResult.cookie)
 		this.content = new DBLiveContent(`https://${initResult.contentDomain}/`)
 
-		await new Promise(resolve => this.once("connect", () => {
+		await new Promise(resolve => this.once("socket-connected", () => {
 			this.status = DBLiveClientStatus.connected
+			setTimeout(() => this.handleEvent("connect"), 1)
 			resolve()
 		}))
 	}
@@ -111,7 +112,8 @@ export class DBLiveClient
 		const cachedValue = this.content.getFromCache(key)
 
 		if (cachedValue) {
-			setTimeout(() => callback(cachedValue), 1)
+			this.logger.debug("Key exists in cache")
+			callback(cachedValue)
 		}
 
 		void this.content.get(key)
@@ -147,7 +149,7 @@ export class DBLiveClient
 		if (cachedValue) {
 			try {
 				const jsonValue = JSON.parse(cachedValue) as T
-				setTimeout(() => callback(jsonValue), 1)
+				callback(jsonValue)
 			}
 			catch(err) {
 				this.logger.error("Could not json parse value in cache:", err)
@@ -245,6 +247,14 @@ export class DBLiveClient
 		if (this.status !== DBLiveClientStatus.connected) {
 			await this.connect()
 		}
+
+		this.logger.debug(`set ${key}='${value}'`)
+
+		this.handleEvent(`key:${key}`, {
+			action: "changed",
+			key,
+			value,
+		})
 
 		let success = false
 

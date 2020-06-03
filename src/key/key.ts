@@ -1,6 +1,6 @@
 import { DBLiveClient } from "../client/client"
-import { DBLiveSocket } from "../socket/socket"
 import { DBLiveContent } from "../content/content"
+import { DBLiveSocket } from "../socket/socket"
 import { DBLiveLogger } from "../util/logger"
 import { DBLiveKeyEventListener } from "./key.eventlistener"
 
@@ -17,7 +17,7 @@ export class DBLiveKey
 		this._content = content
 	}
 
-	private _isWatching = false
+	private _isWatching = true
 	get isWatching(): boolean {
 		return this._isWatching
 	}
@@ -62,12 +62,13 @@ export class DBLiveKey
 	) {
 		this._socket = socket
 		this.content = content
+
+		this.startWatching()
 	}
 
 	onChanged(handler: (value: string|undefined) => void): DBLiveKeyEventListener {
 		const listener = new DBLiveKeyEventListener("changed", handler)
-
-		listener.addEventListener("isListening-changed", () => this.checkListenerStatus())
+			.onListeningChanged(() => this.checkListenerStatus())
 
 		this.listeners.push(listener)
 
@@ -76,12 +77,12 @@ export class DBLiveKey
 
 	private checkListenerStatus() {
 		if (this.isWatching) {
-			if (!this.listeners.find(l => l.isListening)) {
+			if (!this.listeners.find(l => l.listening)) {
 				this.isWatching = false
 			}
 		}
 		else {
-			if (this.listeners.find(l => l.isListening)) {
+			if (this.listeners.find(l => l.listening)) {
 				this.isWatching = true
 			}
 		}
@@ -90,7 +91,7 @@ export class DBLiveKey
 	private emitToListeners(action: "changed"|"deleted", value: string|undefined): void {
 		this.logger.debug(`emitToListeners(${action}, ${value})`)
 
-		for (const listener of this.listeners.filter(l => l.isListening && l.action === action)) {
+		for (const listener of this.listeners.filter(l => l.listening && l.action === action)) {
 			listener.handler(value)
 		}
 	}

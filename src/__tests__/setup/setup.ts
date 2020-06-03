@@ -1,3 +1,5 @@
+import { DBLiveLogger, DBLiveLoggerLevel } from "../../util/logger"
+
 export default (): void => {
-	// Nothing to do
+	DBLiveLogger.logLevel = DBLiveLoggerLevel.none
 }

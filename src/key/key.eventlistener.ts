@@ -1,24 +1,33 @@
 import { DBLiveCallback } from "../types/dblive.callback"
 
-export class DBLiveKeyEventListener extends EventTarget
+export class DBLiveKeyEventListener
 {
-	private _isListening = true
-	get isListening(): boolean {
-		return this._isListening
+	private _listening = true
+	get listening(): boolean {
+		return this._listening
 	}
-	set isListening(isListening: boolean) {
-		if (isListening === this._isListening)
+	set listening(listening: boolean) {
+		if (listening === this._listening)
 			return
 
-		this._isListening = isListening
+		this._listening = listening
 
-		this.dispatchEvent(new Event("isListening-changed"))
+		for (const handler of this.listeningChangedHandlers) {
+			handler(listening)
+		}
 	}
+
+	private listeningChangedHandlers: ListeningChangedHandler[] = []
 
 	constructor(
 		readonly action: string,
 		readonly handler: DBLiveCallback<string|undefined>,
-	) {
-		super()
+	) { }
+
+	onListeningChanged(handler: ListeningChangedHandler): this {
+		this.listeningChangedHandlers.push(handler)
+		return this
 	}
 }
+
+type ListeningChangedHandler = (listening: boolean) => unknown
