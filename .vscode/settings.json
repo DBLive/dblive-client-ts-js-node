@@ -1,0 +1,14 @@
+{
+	"[typescript]": {
+		"editor.codeActionsOnSave": {
+			"source.organizeImports": true
+		},
+	},
+	"typescript.preferences.importModuleSpecifier": "relative",
+	"typescript.format.semicolons": "remove",
+	"vetur.format.defaultFormatterOptions": {
+		"prettier": {
+			"semi": false
+		}
+	}
+}

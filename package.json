@@ -1,0 +1,40 @@
+{
+  "name": "@dblive/client-ts-js",
+  "version": "0.0.1-dev.1",
+  "description": "DBLive client for TS/JS/Node.",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "clearbuild": "npm run cleardist",
+    "cleardist": "rm -r -f dist",
+    "test": "jest --runInBand"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DBLive/dblive-client-ts-js-node.git"
+  },
+  "author": "Mike Richards",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/DBLive/dblive-client-ts-js-node/issues"
+  },
+  "homepage": "https://github.com/DBLive/dblive-client-ts-js-node#readme",
+  "devDependencies": {
+    "@types/jest": "^25.2.3",
+    "@typescript-eslint/eslint-plugin": "^3.0.2",
+    "@typescript-eslint/parser": "^3.0.2",
+    "eslint": "^7.1.0",
+    "eslint-plugin-sort-class-members": "^1.7.0",
+    "jest": "^26.0.1",
+    "jest-cli": "^26.0.1",
+    "node-fetch": "^2.6.0",
+    "ts-jest": "^26.0.0",
+    "typescript": "^3.9.3"
+  },
+  "dependencies": {
+    "@types/socket.io-client": "^1.4.33",
+    "@types/uuid": "^8.0.0",
+    "socket.io-client": "^2.3.0",
+    "uuid": "^8.1.0"
+  }
+}
