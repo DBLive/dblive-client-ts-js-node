@@ -8,9 +8,11 @@ This project is in initial development. No website or admin portal are available
 
 ## Usage
 
-### Swift
+### Typescript/JS
 ```typescript
-import { DBLive } from "@dblive/client-js"
+import { DBLiveClient } from "@dblive/client-js" 
+// or
+const DBLiveClient = require("@dblive/client-js")
 
 const dbLive = new DBLiveClient("+++ appKey +++")
 
@@ -55,7 +57,7 @@ listener.listening = true|false
 #### Methods
 `set(key: string, value: string)`: Sets `key` to a string value.
 
-`set(key: string, value: object)`: Sets `key` to an object value. The object can handle anything that can be serialized into JSON.
+`set(key: string, value: object)`: Sets `key` to an object value. The object can handle any property that can be serialized into JSON.
 
 `get(key: string, callback: (value: string|undefined))`: Gets the current **string** value of `key`
 
@@ -68,8 +70,8 @@ listener.listening = true|false
 #### Planned future functionality
   * `set` and `get` will be restricted based on appKey. Individual devices can be granted additional functionalitality via a *secret key* that can be stored securely in your backend system.
   * `lockAndSet`: Will grant a temporary lock on a key so no other device can change its value. This will help assure that setting the value will not override a `set` from another device.
-  * `Int values`: Ints will have additional functionality, such as incrementing and decrementing in a way that 2 devices can simultaneously do it.
-  * `Remote Notifications`: We'll accept push tokens so we can update key data in the background.
+  * `Numeric values`: Numbers will have additional functionality, such as incrementing and decrementing in a way that 2 devices can simultaneously do it.
+  * `Service Agent Push Notifications`: We'll accept push tokens so we can update key data in the background.
 
 ## Installation
 

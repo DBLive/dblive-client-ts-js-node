@@ -100,7 +100,7 @@ export class DBLiveClient
 		this.socket && this.socket.dispose()
 	}
 
-	get(key: string, callback: (value: string|undefined) => void): void {
+	get(key: string, callback: (value: string|undefined) => unknown): void {
 		if (this.status !== DBLiveClientStatus.connected) {
 			this.once("connect", () => this.get(key, callback))
 			void this.connect()
@@ -135,7 +135,7 @@ export class DBLiveClient
 		return this.key(key).onChanged(handler)
 	}
 
-	getJson<T>(key: string, callback: (value: T|undefined) => void): void {
+	getJson<T>(key: string, callback: (value: T|undefined) => unknown): void {
 		if (this.status !== DBLiveClientStatus.connected) {
 			this.once("connect", () => this.getJson(key, callback))
 			void this.connect()
@@ -172,7 +172,7 @@ export class DBLiveClient
 			})
 	}
 
-	getJsonAndListen<T>(key: string, handler: (value: T|undefined) => void): DBLiveKeyEventListener {
+	getJsonAndListen<T>(key: string, handler: (value: T|undefined) => unknown): DBLiveKeyEventListener {
 		this.logger.debug(`getJsonAndListen(${key})`)
 
 		this.getJson(key, handler)
