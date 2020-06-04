@@ -1,6 +1,6 @@
 {
   "name": "@dblive/client-js",
-  "version": "0.0.1-dev.2",
+  "version": "0.0.1-dev.3",
   "description": "DBLive client for TS/JS/Node.",
   "main": "./src/index.ts",
   "scripts": {
@@ -11,6 +11,7 @@
     "distribute": "cd dist && npm publish && cd ..",
     "eslint": "eslint 'src/**'",
     "postbuild:npm": "ts-node ./src/build-scripts/postbuild.npm.ts",
+    "postdistribute": "npm run cleardist",
     "prebuild": "npm run cleardist && npm run eslint",
     "prebuild:npm": "npm run prebuild",
     "predistribute": "npm run build:npm",
