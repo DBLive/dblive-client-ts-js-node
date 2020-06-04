@@ -4,7 +4,7 @@ import { DBLiveLogger } from "../util/logger"
 
 export class DBLiveAPI
 {
-	private readonly logger = new DBLiveLogger("DBLiveLogger")
+	private readonly logger = new DBLiveLogger("DBLiveAPI")
 	private readonly request = new DBLiveRequest()
 	private url = "https://a.dblive.io/"
 
@@ -20,6 +20,11 @@ export class DBLiveAPI
 				appKey: this.appKey,
 			},
 		})
+
+		if (!result) {
+			this.logger.warn("INIT errored out")
+			return undefined
+		}
 
 		this.logger.debug("INIT result:", result.json)
 
