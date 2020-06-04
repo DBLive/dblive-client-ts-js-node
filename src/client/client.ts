@@ -148,6 +148,7 @@ export class DBLiveClient
 
 		if (cachedValue) {
 			try {
+				this.logger.debug("Key exists in cache")
 				const jsonValue = JSON.parse(cachedValue) as T
 				callback(jsonValue)
 			}

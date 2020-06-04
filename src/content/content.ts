@@ -1,4 +1,4 @@
-import { DBLiveRequest } from "../common/request"
+import { DBLiveRequest, DBLiveRequestInit } from "../common/request"
 import { DBLiveLogger } from "../util/logger"
 
 export class DBLiveContent
@@ -26,22 +26,35 @@ export class DBLiveContent
 		}
 
 		const url = this.urlFor(key, version),
-			response: Response = await this.request.get(
-				url,
-				{
-					cache: "no-cache",
-					keepalive: true,
-				},
-			)
+			cachedValue = this.storage.getItem(url),
+			etag = this.storage.getItem(`${url}-etag`),
+			params: DBLiveRequestInit = {
+				keepalive: true,
+			}
+
+		if (cachedValue && etag) {
+			this.logger.debug(`Local etag: '${etag}'`)
+			params.headers = params.headers || {};
+			(params.headers as Record<string, string>)["If-None-Match"] = etag
+		}
+		
+		const response: Response = await this.request.get(url, params)
 		
 		let result = await response.text()
 
 		if (response.status === 200) {
-			this.logger.debug(`New Etag: ${response.headers.get("Etag") ?? "None"}`)
+			this.logger.debug("200 response")
 			this.storage.setItem(url, result)
+
+			const newEtag = response.headers.get("Etag")
+			if (newEtag) {
+				this.logger.debug(`New Etag: ${newEtag}`)
+				this.storage.setItem(`${url}-etag`, newEtag)
+			}
 		}
 		else if (response.status === 304) {
 			this.logger.debug("304 - Returning cached version")
+			result = cachedValue
 		}
 		else if (response.status === 404 || response.status === 403) {
 			this.logger.debug("Key not found")
