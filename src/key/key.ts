@@ -11,9 +11,6 @@ export class DBLiveKey
 		return this._content
 	}
 	set content(content: DBLiveContent|undefined) {
-		if (content === this._content)
-			return
-
 		this._content = content
 	}
 
@@ -40,9 +37,6 @@ export class DBLiveKey
 		return this._socket
 	}
 	set socket(socket: DBLiveSocket|undefined) {
-		if (socket === this._socket)
-			return
-
 		this._socket = socket
 
 		void this.restartSocketWatch()
@@ -144,6 +138,8 @@ export class DBLiveKey
 
 	private async restartSocketWatch(): Promise<void> {
 		if (this.isWatching) {
+			this.logger.debug(`Restarting socket watch on key ${this.key}`)
+
 			this.socket && this.socket.watch(this.key)
 
 			const value = this.content && await this.content.get(this.key)
