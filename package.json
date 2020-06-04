@@ -12,8 +12,9 @@
     "prebuild": "npm run cleardist",
     "prepublishOnly": "npm run build:npm",
     "pretest": "npm run eslint",
+    "pretest:node": "npm run pretest",
     "test": "jest",
-    "test:node": "npm run pretest && jest --config=./jest.config.node.js"
+    "test:node": "jest --config=./jest.config.node.js"
   },
   "repository": {
     "type": "git",

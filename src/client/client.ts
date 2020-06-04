@@ -243,9 +243,14 @@ export class DBLiveClient
 		void this.connect()
 	}
 
-	async set(key: string, value: string, contentType = "text/plain"): Promise<boolean> {
+	async set(key: string, value: string|Record<string, unknown>, contentType = "text/plain"): Promise<boolean> {
 		if (this.status !== DBLiveClientStatus.connected) {
 			await this.connect()
+		}
+
+		if (typeof(value) === "object") {
+			value = JSON.stringify(value)
+			contentType = "application/json"
 		}
 
 		this.logger.debug(`set ${key}='${value}'`)

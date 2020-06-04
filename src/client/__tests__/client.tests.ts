@@ -36,6 +36,14 @@ describe("DBLiveClient", () => {
 			})
 		})
 	})
+	describe("#getJson", () => {
+		it("returns undefined for a bad key", done => {
+			dbLive.getJson("bad-key", value => {
+				expect(value).toBeUndefined()
+				done()
+			})
+		})
+	})
 	describe("#set", () => {
 		it("sets a value that can be retrieved via #get", async(done) => {
 			const key = `test/ts/set1-${uuidv1()}`,
@@ -46,6 +54,21 @@ describe("DBLiveClient", () => {
 
 			dbLive.get(key, value => {
 				expect(value).toEqual(expectedValue)
+				done()
+			})
+		})
+		it("is able to set a json value that can be retrieved via #getJson", async(done) => {
+			const key = `test/ts/set1-${uuidv1()}`,
+				expectedValue = {
+					hello: "world",
+				},
+				success = await dbLive.set(key, expectedValue)
+
+			expect(success).toBeTruthy()
+
+			dbLive.getJson(key, value => {
+				expect(value).not.toBeUndefined()
+				expect((value as { hello: string }).hello).toEqual("world")
 				done()
 			})
 		})
@@ -86,6 +109,53 @@ describe("DBLiveClient", () => {
 				}
 				else {
 					fail(new Error("#getAndListen handler shouldn't be called this many times"))
+				}
+			})
+		})
+	})
+	describe("#getJsonAndListen", () => {
+		it("immediately returns a json value", async(done) => {
+			const key = `test/ts/getJsonAndListen1-${uuidv1()}`,
+				expectedValue = {
+					hello: "world",
+				}
+			
+			await dbLive.set(key, expectedValue)
+
+			dbLive.getJsonAndListen(key, value => {
+				expect(value).not.toBeUndefined()
+				expect((value as { hello: string }).hello).toEqual("world")
+				done()
+			})
+		})
+		it("listens to a json value and gets called when value changes", async(done) => {
+			await dbLive.connect()
+			
+			const key = `test/ts/getJsonAndListen2-${uuidv1()}`,
+				expectedValue = {
+					hello: "world",
+				}
+
+			let call = 0
+			
+			dbLive.getJsonAndListen(key, value => {
+				call++
+
+				if (call === 1) {
+					expect(value).toBeUndefined()
+					void dbLive.set(key, expectedValue)
+				}
+				else if (call === 2) {
+					expect(value).not.toBeUndefined()
+					expect((value as { hello: string }).hello).toEqual("world")
+				}
+				else if (call === 3) {
+					expect(value).not.toBeUndefined()
+					expect((value as { hello: string }).hello).toEqual("world")
+					done()
+				}
+				else {
+					fail(new Error("#getJsonAndListen handler shouldn't be called this many times"))
 				}
 			})
 		})
