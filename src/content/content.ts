@@ -54,7 +54,13 @@ export class DBLiveContent
 		}
 		else if (response.status === 304) {
 			this.logger.debug("304 - Returning cached version")
-			result = cachedValue
+
+			if (result && result.length) {
+				this.storage.setItem(url, result)
+			}
+			else {
+				result = cachedValue
+			}
 		}
 		else if (response.status === 404 || response.status === 403) {
 			this.logger.debug("Key not found")

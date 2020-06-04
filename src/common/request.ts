@@ -61,22 +61,19 @@ export class DBLiveRequest
 	}
 
 	private async request(url: string, params: DBLiveRequestInit = {}): Promise<Response|undefined> {
-		params.headers = params.headers || {}
 		params.method = params.method || "GET"
-		params.cache = params.cache || "no-store"
 
 		try {
 			if (params.bodyJson) {
+				params.headers = params.headers || {};
 				(params.headers as Record<string, string>)["Content-Type"] = "application/json"
 				params.body = JSON.stringify(params.bodyJson)
 				delete params.bodyJson
 			}
 
-			this.logger.debug(`${params.method} ${url} ${JSON.stringify(params)}`)
+			this.logger.debug(`${params.method} ${url}:`, params)
 
-			const response = await fetch(url, {
-				...params,
-			})
+			const response = await fetch(url, params)
 
 			this.logger.debug(`${url} responded with status code: ${response.status}`)
 
