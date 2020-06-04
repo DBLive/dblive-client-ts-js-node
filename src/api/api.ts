@@ -12,7 +12,7 @@ export class DBLiveAPI
 		private readonly appKey: string,
 	) { }
 
-	async init(): Promise<DBLiveAPIInitResult&{cookie:string}|DBLiveErrorResult|undefined> {
+	async init(): Promise<DBLiveAPIInitResult&{cookie?:string}|DBLiveErrorResult|undefined> {
 		this.logger.debug("INIT started")
 
 		const result = await this.post<DBLiveAPIInitResult>("init", {
@@ -20,11 +20,6 @@ export class DBLiveAPI
 				appKey: this.appKey,
 			},
 		})
-
-		if (!result) {
-			this.logger.warn("INIT errored out")
-			return undefined
-		}
 
 		this.logger.debug("INIT result:", result.json)
 
@@ -34,7 +29,7 @@ export class DBLiveAPI
 
 		return {
 			...result.json,
-			cookie: result.response.headers.get("set-cookie"),
+			cookie: result.response && result.response.headers.get("set-cookie"),
 		}
 	}
 

@@ -16,7 +16,7 @@ export class DBLiveSocket
 		private readonly url: string,
 		private readonly appKey: string,
 		private readonly client: DBLiveClient,
-		private readonly cookie: string,
+		private readonly cookie: string|undefined,
 	) {
 		this.connect()
 	}

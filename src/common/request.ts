@@ -89,9 +89,9 @@ export class DBLiveRequest
 	}
 
 	private async requestJson<T>(url: string, params: DBLiveRequestInit = {}): Promise<DBLiveJsonResponse<T>> {
-		try {
-			const response = await this.request(url, params)
+		const response = await this.request(url, params)
 
+		try {
 			return {
 				json: response && await response.json() as T,
 				response,
@@ -100,7 +100,9 @@ export class DBLiveRequest
 		catch(err) {
 			this.logger.error(`ERROR parsing json from ${url}:`, err)
 
-			return undefined
+			return {
+				response,
+			}
 		}
 	}
 }
@@ -111,5 +113,5 @@ export type DBLiveRequestInit = RequestInit & {
 
 export type DBLiveJsonResponse<T> = {
 	json?: T
-	response: Response
+	response?: Response
 }

@@ -275,11 +275,10 @@ export class DBLiveClient
 		return success
 	}
 
-	private connectSocket(url: string, cookie: string) {
+	private connectSocket(url: string, cookie: string|undefined) {
 		this.logger.debug("Connecting to Socket")
 
 		this.socket = new DBLiveSocket(url, this.appKey, this, cookie)
 	}
-
 
 }
