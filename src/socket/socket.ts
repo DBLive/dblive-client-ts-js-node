@@ -74,9 +74,12 @@ export class DBLiveSocket
 	private connect(): void {
 		this.logger.debug(`Connecting to socketUrl ${this.url} with cookie: ${this.cookie}`)
 
-		this.socket = io(this.url, {
+		const socketOpts: SocketIOClient.ConnectOpts = {
 			forceNew: true,
-			transportOptions: {
+		}
+
+		if (this.cookie) {
+			socketOpts.transportOptions = {
 				polling: {
 					extraHeaders: {
 						"Cookie": this.cookie,
@@ -87,8 +90,10 @@ export class DBLiveSocket
 						"Cookie": this.cookie,
 					},
 				},
-			},
-		})
+			}
+		}
+
+		this.socket = io(this.url, socketOpts)
 
 		this.socket.on("connect", () => this.onConnect())
 		this.socket.on("connect_error", (err: unknown) => this.onConnectError(err))

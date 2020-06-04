@@ -4,6 +4,7 @@ import { DBLiveLogger } from "../util/logger"
 
 export class DBLiveAPI
 {
+	private cookie?: string
 	private readonly logger = new DBLiveLogger("DBLiveAPI")
 	private readonly request = new DBLiveRequest()
 	private url = "https://a.dblive.io/"
@@ -27,9 +28,12 @@ export class DBLiveAPI
 			this.url = `https://${(result.json as DBLiveAPIInitResult).apiDomain}/`
 		}
 
+		const cookie = result.response && result.response.headers.get("set-cookie")
+		this.cookie = cookie || undefined
+
 		return {
 			...result.json,
-			cookie: result.response && result.response.headers.get("set-cookie"),
+			cookie: this.cookie,
 		}
 	}
 
@@ -51,21 +55,35 @@ export class DBLiveAPI
 	}
 
 	private async post<T>(apiCall: string, params: DBLiveRequestInit = {}): Promise<DBLiveJsonResponse<T|DBLiveErrorResult>> {
-		return await this.request.postJson<T|DBLiveErrorResult>(`${this.url}${apiCall}`, {
+		const initParams: DBLiveRequestInit = {
 			...params,
 			cache: "no-store",
 			credentials: "include",
 			keepalive: true,
-		})
+		}
+
+		if (this.cookie) {
+			initParams.headers = initParams.headers || {};
+			(initParams.headers as Record<string, string>)["Cookie"] = this.cookie
+		}
+
+		return await this.request.postJson<T|DBLiveErrorResult>(`${this.url}${apiCall}`, initParams)
 	}
 	
 	private async put<T>(apiCall: string, params: DBLiveRequestInit = {}): Promise<DBLiveJsonResponse<T|DBLiveErrorResult>> {
-		return await this.request.putJson<T|DBLiveErrorResult>(`${this.url}${apiCall}`, {
+		const initParams: DBLiveRequestInit = {
 			...params,
 			cache: "no-store",
 			credentials: "include",
 			keepalive: true,
-		})
+		}
+
+		if (this.cookie) {
+			initParams.headers = initParams.headers || {};
+			(initParams.headers as Record<string, string>)["Cookie"] = this.cookie
+		}
+
+		return await this.request.putJson<T|DBLiveErrorResult>(`${this.url}${apiCall}`, initParams)
 	}
 }
 
