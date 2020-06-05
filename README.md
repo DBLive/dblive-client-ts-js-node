@@ -7,6 +7,13 @@
 ### Currently in development
 This project is currently in development. No website or admin portal are available at this time. If you have any questions or would like to use or play with this library, please contact me at [dblive@mikerichards.tech](mailto:dblive@mikerichards.tech).
 
+## Example
+See this client in action with a tic-tac-toe web app. This is obviously **not** a full-featured Tic-Tac-Toe game; you can play both X and O from the same device, or separate, and other people might be playing the game at the same time. The point of the example is to demonstrate how data stays synchronized between devices using *DBLive*, and how it could work for your project.
+
+[https://tictactoe.dblive.io](https://tictactoe.dblive.io)
+
+[https://github.com/DBLive/dblive-web-example-tictactoe-ts](https://github.com/DBLive/dblive-web-example-tictactoe-ts)
+
 ## Usage
 
 ### Typescript/JS
