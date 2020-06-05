@@ -1,6 +1,6 @@
 {
   "name": "@dblive/client-js",
-  "version": "0.0.1-dev.13",
+  "version": "0.0.1-dev.14",
   "description": "DBLive client for TS/JS/Node.",
   "main": "./src/index.ts",
   "scripts": {
