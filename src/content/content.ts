@@ -29,6 +29,7 @@ export class DBLiveContent
 			cachedValue = this.storage.getItem(url),
 			etag = this.storage.getItem(`${url}-etag`),
 			params: DBLiveRequestInit = {
+				cache: "no-cache",
 				keepalive: true,
 			}
 
