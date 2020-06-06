@@ -206,7 +206,7 @@ export class DBLiveSocket
 	private onReset(): void {
 		this.logger.debug("reset")
 
-		// this.client.reset()
+		this.client.reset()
 	}
 }
 
