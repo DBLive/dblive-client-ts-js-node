@@ -91,6 +91,11 @@ export class DBLiveSocket
 					},
 				},
 			}
+
+			socketOpts.transports = ["websocket"]
+		}
+		else {
+			socketOpts.transports = ["websocket"]
 		}
 
 		this.socket = io(this.url, socketOpts)
