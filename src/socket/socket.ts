@@ -1,5 +1,5 @@
 import io from "socket.io-client"
-import { DBLiveClient, DBLiveClientStatus } from "../client/client"
+import { DBLiveClient } from "../client/client"
 import { DBLiveErrorResult, isErrorResult } from "../common/error.result"
 import { DBLivePutResult } from "../types/putresult"
 import { DBLiveLogger } from "../util/logger"
@@ -48,7 +48,7 @@ export class DBLiveSocket
 	}
 
 	async stopWatching(key: string): Promise<void> {
-		if (this.client.status !== DBLiveClientStatus.connected) {
+		if (this.client.status !== "connected") {
 			await this.client.connect()
 		}
 
@@ -60,7 +60,7 @@ export class DBLiveSocket
 	}
 
 	async watch(key: string): Promise<void> {
-		if (this.client.status !== DBLiveClientStatus.connected) {
+		if (this.client.status !== "connected") {
 			await this.client.connect()
 		}
 
@@ -92,7 +92,7 @@ export class DBLiveSocket
 				},
 			}
 
-			socketOpts.transports = ["websocket"]
+			socketOpts.transports = ["polling", "websocket"]
 		}
 		else {
 			socketOpts.transports = ["websocket"]

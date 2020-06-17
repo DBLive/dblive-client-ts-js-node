@@ -8,16 +8,16 @@ import { DBLiveCallback } from "../types/dblive.callback"
 import { DBLiveLogger } from "../util/logger"
 import { DBLiveEventHandler } from "./eventhandler"
 
-export enum DBLiveClientStatus
-{
-	notConnected,
-	connecting,
-	connected
-}
+export const DBLiveClientStatus = {
+	connected: "connected",
+	connecting: "connecting",
+	notConnected: "notConnected",
+} as const
+export type DBLiveClientStatus = typeof DBLiveClientStatus[keyof typeof DBLiveClientStatus]
 
 export class DBLiveClient
 {
-	public status = DBLiveClientStatus.notConnected
+	public status: DBLiveClientStatus = DBLiveClientStatus.notConnected
 
 	private _socket?: DBLiveSocket
 	get socket(): DBLiveSocket|undefined {

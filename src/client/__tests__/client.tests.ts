@@ -1,5 +1,5 @@
 import { v1 as uuidv1 } from "uuid"
-import { DBLiveClient, DBLiveClientStatus } from "../client"
+import { DBLiveClient } from "../client"
 
 let dbLive: DBLiveClient
 
@@ -15,17 +15,17 @@ describe("DBLiveClient", () => {
 	describe("#connect", () => {
 		it("successfully connects", async() => {
 			await dbLive.connect()
-			expect(dbLive.status).toEqual(DBLiveClientStatus.connected)
+			expect(dbLive.status).toEqual("connected")
 		})
 		it("successfully connects and sends event message", done => {
 			dbLive.on("connect", () => {
-				expect(dbLive.status).toEqual(DBLiveClientStatus.connected)
+				expect(dbLive.status).toEqual("connected")
 				done()
 			})
 			
 			void dbLive.connect()
 			
-			expect(dbLive.status).toEqual(DBLiveClientStatus.connecting)
+			expect(dbLive.status).toEqual("connecting")
 		})
 	})
 	describe("#get", () => {

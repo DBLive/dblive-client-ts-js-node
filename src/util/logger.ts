@@ -1,11 +1,11 @@
-export enum DBLiveLoggerLevel
-{
-	debug,
-	info,
-	warn,
-	error,
-	none,
-}
+export const DBLiveLoggerLevel = {
+	debug: 0,
+	error: 3,
+	info: 1,
+	none: 4,
+	warn: 2,
+} as const
+export type DBLiveLoggerLevel = typeof DBLiveLoggerLevel[keyof typeof DBLiveLoggerLevel]
 
 export class DBLiveLogger
 {
@@ -39,15 +39,32 @@ export class DBLiveLogger
 	private commitLog(message: string, level: DBLiveLoggerLevel, ...optionalParams: any[]): void {
 		if (this.doLog(level)) {
 			if (level === DBLiveLoggerLevel.error) {
-				console.error(`${this.name} ${DBLiveLoggerLevel[level].toUpperCase()}: ${message}`, ...optionalParams)
+				console.error(`${this.name} ${this.levelToString(level).toUpperCase()}: ${message}`, ...optionalParams)
 			}
 			else {
-				console.log(`${this.name} ${DBLiveLoggerLevel[level].toUpperCase()}: ${message}`, ...optionalParams)
+				console.log(`${this.name} ${this.levelToString(level).toUpperCase()}: ${message}`, ...optionalParams)
 			}
 		}
 	}
 
 	private doLog(logLevel: DBLiveLoggerLevel): boolean {
 		return logLevel >= this.logLevel
+	}
+
+	private levelToString(logLevel: DBLiveLoggerLevel): string {
+		switch (logLevel) {
+		case DBLiveLoggerLevel.debug:
+			return "debug"
+		case DBLiveLoggerLevel.error:
+			return "error"
+		case DBLiveLoggerLevel.info:
+			return "info"
+		case DBLiveLoggerLevel.none:
+			return "none"
+		case DBLiveLoggerLevel.warn:
+			return "warn"
+		}
+
+		return ""
 	}
 }
