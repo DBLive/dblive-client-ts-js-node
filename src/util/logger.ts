@@ -1,11 +1,11 @@
-export const DBLiveLoggerLevel = {
+const DBLiveLoggerLevel = {
 	debug: "debug", // 0
 	error: "error", // 3
 	info: "info", // 1
 	none: "none", // 4
 	warn: "warn", // 2
 } as const
-export type DBLiveLoggerLevel = typeof DBLiveLoggerLevel[keyof typeof DBLiveLoggerLevel]
+type DBLiveLoggerLevel = typeof DBLiveLoggerLevel[keyof typeof DBLiveLoggerLevel]
 
 export class DBLiveLogger
 {

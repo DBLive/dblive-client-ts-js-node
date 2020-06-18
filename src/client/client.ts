@@ -8,12 +8,12 @@ import { DBLiveCallback } from "../types/dblive.callback"
 import { DBLiveLogger } from "../util/logger"
 import { DBLiveEventHandler } from "./eventhandler"
 
-export const DBLiveClientStatus = {
+const DBLiveClientStatus = {
 	connected: "connected",
 	connecting: "connecting",
 	notConnected: "notConnected",
 } as const
-export type DBLiveClientStatus = typeof DBLiveClientStatus[keyof typeof DBLiveClientStatus]
+type DBLiveClientStatus = typeof DBLiveClientStatus[keyof typeof DBLiveClientStatus]
 
 export class DBLiveClient
 {
