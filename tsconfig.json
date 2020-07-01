@@ -3,10 +3,10 @@
 		"allowJs": false,
 		"alwaysStrict": true,
 		"baseUrl": "src",
+		"declaration": true,
 		"emitDecoratorMetadata": true,
 		"esModuleInterop": true,
 		"experimentalDecorators": true,
-		"declaration": true,
 		"isolatedModules": true,
 		"lib": [
 			"DOM",
@@ -15,9 +15,9 @@
 		],
 		"module": "commonjs",
 		"noImplicitAny": true,
-		"sourceMap": true,
 		"outDir": "./dist",
 		"rootDir": "./src",
+		"sourceMap": true,
 		"target": "ES6",
 	},
 	"include": [
