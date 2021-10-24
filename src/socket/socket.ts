@@ -1,4 +1,4 @@
-import io from "socket.io-client"
+import io, { ManagerOptions, Socket, SocketOptions } from "socket.io-client"
 import { DBLiveClient, DBLiveClientStatus } from "../client/client"
 import { DBLiveErrorResult, isErrorResult } from "../common/error.result"
 import { DBLivePutResult } from "../types/putresult"
@@ -10,7 +10,7 @@ export class DBLiveSocket
 
 	private logger = new DBLiveLogger("DBLiveSocket")
 	private reconnectOnDisconnect = false
-	private socket: SocketIOClient.Socket
+	private socket: Socket
 
 	constructor(
 		private readonly url: string,
@@ -25,18 +25,19 @@ export class DBLiveSocket
 		this.socket.disconnect()
 	}
 
-	async put(key: string, value: string, contentType = "text/plain"): Promise<DBLivePutResult> {
+	async put(key: string, value: string, options: DBLiveSocketPutOptions): Promise<DBLivePutResult> {
 		if (!this.socket)
 			return {}
 
-		this.logger.debug(`put '${key}'='${value}', ${contentType}`)
+		this.logger.debug(`put '${key}'='${value}', ${options.contentType}`)
 
 		return await new Promise(resolve => {
 			this.socket.emit(
 				"put",
 				{
 					body: value,
-					contentType,
+					contentType: options.contentType,
+					customArgs: options.customArgs,
 					key,
 				},
 				(data: DBLivePutResult) => {
@@ -74,7 +75,7 @@ export class DBLiveSocket
 	private connect(): void {
 		this.logger.debug(`Connecting to socketUrl ${this.url} with cookie: ${this.cookie}`)
 
-		const socketOpts: SocketIOClient.ConnectOpts = {
+		const socketOpts: Partial<ManagerOptions & SocketOptions> = {
 			forceNew: true,
 		}
 
@@ -92,7 +93,7 @@ export class DBLiveSocket
 				},
 			}
 
-			socketOpts.transports = ["websocket"]
+			socketOpts.transports = ["polling", "websocket"]
 		}
 		else {
 			socketOpts.transports = ["websocket"]
@@ -215,10 +216,16 @@ export class DBLiveSocket
 	}
 }
 
-type KeyEventData = {
+export type KeyEventData = {
 	action: "changed"|"deleted"
+	customArgs?: string
 	etag?: string
 	key: string
 	value?: string
 	version?: string
+}
+
+export type DBLiveSocketPutOptions = {
+	contentType: string
+	customArgs?: unknown
 }

@@ -3,6 +3,14 @@ import { DBLiveCallback } from "../types/dblive.callback"
 export class DBLiveKeyEventListener
 {
 	private _listening = true
+
+	private listeningChangedHandlers: ListeningChangedHandler[] = []
+
+	constructor(
+		readonly action: string,
+		readonly handler: DBLiveCallback<DBLiveKeyEventHandlerArgs>,
+	) { }
+
 	get listening(): boolean {
 		return this._listening
 	}
@@ -17,13 +25,6 @@ export class DBLiveKeyEventListener
 		}
 	}
 
-	private listeningChangedHandlers: ListeningChangedHandler[] = []
-
-	constructor(
-		readonly action: string,
-		readonly handler: DBLiveCallback<string|undefined>,
-	) { }
-
 	onListeningChanged(handler: ListeningChangedHandler): this {
 		this.listeningChangedHandlers.push(handler)
 		return this
@@ -31,3 +32,8 @@ export class DBLiveKeyEventListener
 }
 
 type ListeningChangedHandler = (listening: boolean) => unknown
+
+export type DBLiveKeyEventHandlerArgs = {
+	value: string|undefined
+	customArgs?: unknown
+}

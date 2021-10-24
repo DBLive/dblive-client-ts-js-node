@@ -7,7 +7,6 @@
     },
     "extends": [
         "eslint:recommended",
-        "plugin:@typescript-eslint/eslint-recommended",
         "plugin:@typescript-eslint/recommended",
         "plugin:@typescript-eslint/recommended-requiring-type-checking"
     ],
@@ -23,6 +22,10 @@
         "@typescript-eslint"
     ],
     "rules": {
+        "@typescript-eslint/indent": [
+            "error",
+            "tab"
+        ],
         "@typescript-eslint/member-delimiter-style": [
             "error",
             {
@@ -59,8 +62,7 @@
         ],
         "eqeqeq": [2, "smart"],
         "indent": [
-            "error",
-            "tab"
+            "off"
         ],
         "linebreak-style": [
             "error",

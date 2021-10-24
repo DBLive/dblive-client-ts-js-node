@@ -8,6 +8,8 @@ class TestJsDomEnvironment extends JsDomEnvironment
 
 		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 		this.global.fetch = require("node-fetch")
+
+		this.global.setImmediate = setTimeout
 	}
 }
 

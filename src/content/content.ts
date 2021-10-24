@@ -111,11 +111,11 @@ class DBLiveContentLocalCacheStorage implements DBLiveContentCacheStorage
 {
 	[name: string]: unknown
 
+	private items: { [name: string]: unknown  } = {}
+
 	get length(): number {
 		return Object.keys(this.items).length
 	}
-
-	private items: { [name: string]: unknown  } = {}
 
 	clear(): void {
 		this.items = {}

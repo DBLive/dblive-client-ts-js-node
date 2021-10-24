@@ -37,14 +37,15 @@ export class DBLiveAPI
 		}
 	}
 
-	async set(key: string, value: string, contentType = "text/plain"): Promise<DBLiveSetResult|DBLiveErrorResult|undefined> {
+	async set(key: string, value: string, options: DBLiveAPISetOptions): Promise<DBLiveSetResult|DBLiveErrorResult|undefined> {
 		this.logger.debug(`SET /keys '${key}'='${value}'`)
 
 		const result = await this.put<DBLiveSetResult>("keys", {
 			bodyJson: {
 				appKey: this.appKey,
 				body: value,
-				"content-type": contentType,
+				"content-type": options.contentType,
+				"custom-args": options.customArgs && JSON.stringify(options.customArgs),
 				key,
 			},
 		})
@@ -96,4 +97,9 @@ type DBLiveAPIInitResult = {
 
 type DBLiveSetResult = {
 	versionId?: string
+}
+
+export type DBLiveAPISetOptions = {
+	contentType: string
+	customArgs?: unknown
 }

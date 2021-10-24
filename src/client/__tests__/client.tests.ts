@@ -4,7 +4,7 @@ import { DBLiveClient, DBLiveClientStatus } from "../client"
 let dbLive: DBLiveClient
 
 beforeEach(() => {
-	dbLive = new DBLiveClient("+EzwYKZrXI7eKn/KRtlhURsGsjyP2e+1++vqTDQH")
+	dbLive = new DBLiveClient("RGvQkjiSrmsBRLuiKJmYgghNO/Xsn7ONH1M5ZO/N")
 })
 
 afterEach(() => {
@@ -45,19 +45,21 @@ describe("DBLiveClient", () => {
 		})
 	})
 	describe("#set", () => {
-		it("sets a value that can be retrieved via #get", async(done) => {
+		it("sets a value that can be retrieved via #get", async() => {
 			const key = `test/ts/set1-${uuidv1()}`,
 				expectedValue = uuidv1(),
 				success = await dbLive.set(key, expectedValue)
 
 			expect(success).toBeTruthy()
 
-			dbLive.get(key, value => {
-				expect(value).toEqual(expectedValue)
-				done()
+			return new Promise<void>(resolve => {
+				dbLive.get(key, value => {
+					expect(value).toEqual(expectedValue)
+					resolve()
+				})
 			})
 		})
-		it("is able to set a json value that can be retrieved via #getJson", async(done) => {
+		it("is able to set a json value that can be retrieved via #getJson", async() => {
 			const key = `test/ts/set1-${uuidv1()}`,
 				expectedValue = {
 					hello: "world",
@@ -66,23 +68,27 @@ describe("DBLiveClient", () => {
 
 			expect(success).toBeTruthy()
 
-			dbLive.getJson(key, value => {
-				expect(value).not.toBeUndefined()
-				expect((value as { hello: string }).hello).toEqual("world")
-				done()
+			return new Promise<void>(resolve => {
+				dbLive.getJson(key, value => {
+					expect(value).not.toBeUndefined()
+					expect((value as { hello: string }).hello).toEqual("world")
+					resolve()
+				})
 			})
 		})
 	})
 	describe("#getAndListen", () => {
-		it("immediately returns a value", async(done) => {
+		it("immediately returns a value", async() => {
 			const key = `test/ts/getAndListen1-${uuidv1()}`,
 				expectedValue = uuidv1()
 			
 			await dbLive.set(key, expectedValue)
 
-			dbLive.getAndListen(key, value => {
-				expect(value).toEqual(expectedValue)
-				done()
+			return new Promise<void>(resolve => {
+				dbLive.getAndListen(key, args => {
+					expect(args.value).toEqual(expectedValue)
+					resolve()
+				})
 			})
 		})
 		it("listens to a value and gets called when value changes", done => {
@@ -91,18 +97,52 @@ describe("DBLiveClient", () => {
 
 			let call = 0
 			
-			dbLive.getAndListen(key, value => {
+			dbLive.getAndListen(key, args => {
 				call++
 
 				if (call === 1) {
-					expect(value).toBeUndefined()
+					expect(args.value).toBeUndefined()
 					void dbLive.set(key, expectedValue)
 				}
 				else if (call === 2) {
-					expect(value).toEqual(expectedValue)
+					expect(args.value).toEqual(expectedValue)
 				}
 				else if (call === 3) {
-					expect(value).toEqual(expectedValue)
+					expect(args.value).toEqual(expectedValue)
+					done()
+				}
+				else {
+					fail(new Error("#getAndListen handler shouldn't be called this many times"))
+				}
+			})
+		})
+		it("passes customArgs when supplied", done => {
+			const key = `test/ts/getAndListen3-${uuidv1()}`,
+				expectedValue = uuidv1()
+
+			let call = 0
+			
+			dbLive.getAndListen(key, args => {
+				call++
+
+				if (call === 1) {
+					expect(args.value).toBeUndefined()
+					expect(args.customArgs).toBeUndefined()
+					void dbLive.set(key, expectedValue, {
+						customArgs: {
+							hello: "world",
+						},
+					})
+				}
+				else if (call === 2) {
+					expect(args.value).toEqual(expectedValue)
+					expect(args.customArgs).not.toBeUndefined()
+					expect((args.customArgs as { hello: string }).hello).toEqual("world")
+				}
+				else if (call === 3) {
+					expect(args.value).toEqual(expectedValue)
+					expect(args.customArgs).not.toBeUndefined()
+					expect((args.customArgs as { hello: string }).hello).toEqual("world")
 					done()
 				}
 				else {
@@ -111,26 +151,26 @@ describe("DBLiveClient", () => {
 			})
 		})
 		it("stops listening when .listening is set to false", done => {
-			const key = `test/ts/getAndListen3-${uuidv1()}`,
+			const key = `test/ts/getAndListen4-${uuidv1()}`,
 				expectedValue = uuidv1()
 
 			let call = 0
 		
-			const listener = dbLive.getAndListen(key, async(value) => {
+			const listener = dbLive.getAndListen(key, async(args) => {
 				call++
 
 				if (call === 1) {
-					expect(value).toBeUndefined()
+					expect(args.value).toBeUndefined()
 					await dbLive.set(key, expectedValue)
 				}
 				else if (call === 2) {
-					expect(value).toEqual(expectedValue)
+					expect(args.value).toEqual(expectedValue)
 				}
 				else if (call === 3) {
-					expect(value).toEqual(expectedValue)
+					expect(args.value).toEqual(expectedValue)
 					listener.listening = false
 					await dbLive.set(key, "new-value")
-					setTimeout(() => void done(), 100)
+					setTimeout(() => { done() }, 100)
 				}
 				else {
 					fail(new Error("#getAndListen handler shouldn't be called after .listening is set to false"))
@@ -139,7 +179,7 @@ describe("DBLiveClient", () => {
 		})
 	})
 	describe("#getJsonAndListen", () => {
-		it("immediately returns a json value", async(done) => {
+		it("immediately returns a json value", async() => {
 			const key = `test/ts/getJsonAndListen1-${uuidv1()}`,
 				expectedValue = {
 					hello: "world",
@@ -147,10 +187,12 @@ describe("DBLiveClient", () => {
 			
 			await dbLive.set(key, expectedValue)
 
-			dbLive.getJsonAndListen(key, value => {
-				expect(value).not.toBeUndefined()
-				expect((value as { hello: string }).hello).toEqual("world")
-				done()
+			return new Promise<void>(resolve => {
+				dbLive.getJsonAndListen(key, args => {
+					expect(args.value).not.toBeUndefined()
+					expect((args.value as { hello: string }).hello).toEqual("world")
+					resolve()
+				})
 			})
 		})
 		it("listens to a json value and gets called when value changes", done => {
@@ -161,20 +203,20 @@ describe("DBLiveClient", () => {
 
 			let call = 0
 			
-			dbLive.getJsonAndListen(key, value => {
+			dbLive.getJsonAndListen(key, args => {
 				call++
 
 				if (call === 1) {
-					expect(value).toBeUndefined()
+					expect(args.value).toBeUndefined()
 					void dbLive.set(key, expectedValue)
 				}
 				else if (call === 2) {
-					expect(value).not.toBeUndefined()
-					expect((value as { hello: string }).hello).toEqual("world")
+					expect(args.value).not.toBeUndefined()
+					expect((args.value as { hello: string }).hello).toEqual("world")
 				}
 				else if (call === 3) {
-					expect(value).not.toBeUndefined()
-					expect((value as { hello: string }).hello).toEqual("world")
+					expect(args.value).not.toBeUndefined()
+					expect((args.value as { hello: string }).hello).toEqual("world")
 					done()
 				}
 				else {
@@ -190,25 +232,25 @@ describe("DBLiveClient", () => {
 
 			let call = 0
 			
-			const listener = dbLive.getJsonAndListen(key, async(value) => {
+			const listener = dbLive.getJsonAndListen(key, async(args) => {
 				call++
 
 				if (call === 1) {
-					expect(value).toBeUndefined()
+					expect(args.value).toBeUndefined()
 					await dbLive.set(key, expectedValue)
 				}
 				else if (call === 2) {
-					expect(value).not.toBeUndefined()
-					expect((value as { hello: string }).hello).toEqual("world")
+					expect(args.value).not.toBeUndefined()
+					expect((args.value as { hello: string }).hello).toEqual("world")
 				}
 				else if (call === 3) {
-					expect(value).not.toBeUndefined()
-					expect((value as { hello: string }).hello).toEqual("world")
+					expect(args.value).not.toBeUndefined()
+					expect((args.value as { hello: string }).hello).toEqual("world")
 					listener.listening = false
 					await dbLive.set(key, {
 						hello2: "world2",
 					})
-					setTimeout(() => void done(), 100)
+					setTimeout(() => { done() }, 100)
 				}
 				else {
 					fail(new Error("#getJsonAndListen handler shouldn't be called after .listening is set to false"))
