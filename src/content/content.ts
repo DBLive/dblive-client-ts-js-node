@@ -57,9 +57,6 @@ export class DBLiveContent
 		if (!this.socket)
 			return undefined
 		
-		if (!this.socket.isConnected)
-			return await this.getFromUrl(key)
-
 		const clientEtag = this.getFromCache(`${key}-etag`)
 		
 		if (!clientEtag) {
@@ -136,7 +133,10 @@ export class DBLiveContent
 			(params.headers as Record<string, string>)["If-None-Match"] = etag
 		}
 		
-		const response: Response = await this.request.get(url, params)
+		const response = await this.request.get(url, params)
+
+		if (!response)
+			return undefined
 		
 		let result = await response.text()
 

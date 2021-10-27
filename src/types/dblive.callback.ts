@@ -1,1 +1,1 @@
-export type DBLiveCallback<T> = (item: T) => void
+export type DBLiveCallback<T> = (item: T) => unknown

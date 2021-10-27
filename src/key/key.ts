@@ -170,7 +170,7 @@ export class DBLiveKey
 
 			this.socket && this.socket.watch(this.key)
 
-			const value = this.content && await this.content.get(this.key)
+			const value = this.content && await this.content.refresh(this.key)
 
 			if (value && value !== this.currentValue) {
 				this.currentValue = value

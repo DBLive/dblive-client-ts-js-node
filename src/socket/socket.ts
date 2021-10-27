@@ -51,6 +51,17 @@ export class DBLiveSocket
 		
 		this.logger.debug(`meta '${key}'`)
 
+		if (!this.isConnected) {
+			this.logger.debug(`meta '${key}': socket not connected. Waiting for connection.`)
+			
+			// eslint-disable-next-line @typescript-eslint/no-misused-promises
+			return await new Promise(resolve => {
+				this.client.once("socket-connected", async() => {
+					resolve(await this.meta(key))
+				})
+			})
+		}
+
 		return await new Promise(resolve => {
 			this.socket.emit(
 				"meta",
