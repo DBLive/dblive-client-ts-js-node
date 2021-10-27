@@ -29,19 +29,15 @@ describe("DBLiveClient", () => {
 		})
 	})
 	describe("#get", () => {
-		it("returns undefined for a bad key", done => {
-			dbLive.get("bad-key", value => {
-				expect(value).toBeUndefined()
-				done()
-			})
+		it("returns undefined for a bad key", async() => {
+			const value = await dbLive.get("bad-key")
+			expect(value).toBeUndefined()
 		})
 	})
 	describe("#getJson", () => {
-		it("returns undefined for a bad key", done => {
-			dbLive.getJson("bad-key", value => {
-				expect(value).toBeUndefined()
-				done()
-			})
+		it("returns undefined for a bad key", async() => {
+			const value = await dbLive.getJson("bad-key")
+			expect(value).toBeUndefined()
 		})
 	})
 	describe("#set", () => {
@@ -52,12 +48,11 @@ describe("DBLiveClient", () => {
 
 			expect(success).toBeTruthy()
 
-			return new Promise<void>(resolve => {
-				dbLive.get(key, value => {
-					expect(value).toEqual(expectedValue)
-					resolve()
-				})
-			})
+			const cachedValue = await dbLive.get(key)
+			expect(cachedValue).toEqual(expectedValue)
+
+			const serverValue = await dbLive.get(key, { bypassCache: true })
+			expect(serverValue).toEqual(expectedValue)
 		})
 		it("is able to set a json value that can be retrieved via #getJson", async() => {
 			const key = `test/ts/set1-${uuidv1()}`,
@@ -68,13 +63,9 @@ describe("DBLiveClient", () => {
 
 			expect(success).toBeTruthy()
 
-			return new Promise<void>(resolve => {
-				dbLive.getJson(key, value => {
-					expect(value).not.toBeUndefined()
-					expect((value as { hello: string }).hello).toEqual("world")
-					resolve()
-				})
-			})
+			const value = await dbLive.getJson<{ hello: string }>(key)
+			expect(value).not.toBeUndefined()
+			expect(value.hello).toEqual("world")
 		})
 	})
 	describe("#getAndListen", () => {

@@ -10,7 +10,7 @@ export class DBLiveSocket
 
 	private logger = new DBLiveLogger("DBLiveSocket")
 	private reconnectOnDisconnect = false
-	private socket: Socket
+	private socket?: Socket
 
 	constructor(
 		private readonly url: string,
@@ -22,9 +22,49 @@ export class DBLiveSocket
 	}
 
 	dispose(): void {
-		this.socket.disconnect()
+		this.socket && this.socket.disconnect()
 	}
 
+	async get(key: string): Promise<DBLiveSocketGetResult|DBLiveSocketGetRedirectResult> {
+		if (!this.socket)
+			return {}
+		
+		this.logger.debug(`get '${key}'`)
+
+		return await new Promise(resolve => {
+			this.socket.emit(
+				"get",
+				{
+					key,
+				},
+				(data: DBLiveSocketGetResult) => {
+					this.logger.debug("get ack:", data)
+					resolve(data)
+				},
+			)
+		})
+	}
+
+	async meta(key: string): Promise<DBLiveSocketMetaResult> {
+		if (!this.socket)
+			return {}
+		
+		this.logger.debug(`meta '${key}'`)
+
+		return await new Promise(resolve => {
+			this.socket.emit(
+				"meta",
+				{
+					key,
+				},
+				(data: DBLiveSocketMetaResult) => {
+					this.logger.debug("meta result:", data)
+					resolve(data)
+				},
+			)
+		})
+	}
+	
 	async put(key: string, value: string, options: DBLiveSocketPutOptions): Promise<DBLivePutResult> {
 		if (!this.socket)
 			return {}
@@ -133,7 +173,7 @@ export class DBLiveSocket
 				}
 
 				this.client.handleEvent("socket-connected")
-				this.client.socket = this
+				// this.client.socket = this
 			},
 		)
 	}
@@ -225,7 +265,25 @@ export type KeyEventData = {
 	version?: string
 }
 
+export type DBLiveSocketGetResult = {
+	contentType?: string
+	etag?: string
+	value?: string
+}
+
+export type DBLiveSocketMetaResult = {
+	etag?: string
+}
+
+export type DBLiveSocketGetRedirectResult = {
+	url?: string
+}
+
 export type DBLiveSocketPutOptions = {
 	contentType: string
 	customArgs?: unknown
+}
+
+export const isSocketRedirectResult = (args: DBLiveSocketGetResult|DBLiveSocketGetRedirectResult): args is DBLiveSocketGetRedirectResult => {
+	return (args as DBLiveSocketGetRedirectResult).url !== undefined
 }

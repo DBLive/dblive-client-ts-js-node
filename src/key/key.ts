@@ -32,6 +32,9 @@ export class DBLiveKey
 	}
 	set content(content: DBLiveContent|undefined) {
 		this._content = content
+
+		if (content)
+			void this.refresh()
 	}
 
 	// eslint-disable-next-line @typescript-eslint/member-ordering
@@ -144,6 +147,20 @@ export class DBLiveKey
 		}
 		else {
 			this.logger.warn(`No key event handler for action '${data.action as string}'`)
+		}
+	}
+
+	private async refresh(): Promise<void> {
+		if (!this.content)
+			return
+		
+		const refreshedValue = await this.content.refresh(this.key)
+
+		if (refreshedValue !== this.currentValue) {
+			this.currentValue = refreshedValue
+			this.emitToListeners("changed", {
+				value: refreshedValue,
+			})
 		}
 	}
 
