@@ -57,6 +57,9 @@ export class DBLiveContent
 		if (!this.socket)
 			return undefined
 		
+		if (!this.socket.isConnected)
+			return await this.getFromUrl(key)
+
 		const clientEtag = this.getFromCache(`${key}-etag`)
 		
 		if (!clientEtag) {
@@ -67,7 +70,6 @@ export class DBLiveContent
 		const serverMeta = await this.socket.meta(key),
 			serverEtag = serverMeta && serverMeta.etag
 		
-
 		if (clientEtag === serverEtag) {
 			this.logger.debug("refresh complete - values hasn't changed")
 			return this.getFromCache(key)
@@ -142,7 +144,7 @@ export class DBLiveContent
 			this.logger.debug("getFromUrl 200 response")
 			this.setCache(key, result)
 
-			const newEtag = response.headers.get("Etag")
+			const newEtag = response.headers.get("etag")
 			if (newEtag) {
 				this.logger.debug(`getFromUrl new etag: ${newEtag}`)
 				this.setCache(`${key}-etag`, newEtag)

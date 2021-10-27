@@ -173,7 +173,7 @@ export class DBLiveSocket
 				}
 
 				this.client.handleEvent("socket-connected")
-				// this.client.socket = this
+				this.client.socket = this
 			},
 		)
 	}

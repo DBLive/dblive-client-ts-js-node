@@ -73,7 +73,10 @@ export class DBLiveRequest
 
 			this.logger.debug(`${params.method} ${url}:`, params)
 
-			const response = await fetch(url, params)
+			const response = await fetch(url, {
+				...params,
+				cache: "no-cache",
+			})
 
 			this.logger.debug(`${url} responded with status code: ${response.status}`)
 
