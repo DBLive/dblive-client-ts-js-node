@@ -96,6 +96,7 @@ type DBLiveAPIInitResult = {
 }
 
 type DBLiveSetResult = {
+	etag?: string
 	versionId?: string
 }
 

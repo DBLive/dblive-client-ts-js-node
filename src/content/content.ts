@@ -78,7 +78,8 @@ export class DBLiveContent
 	}
 
 	async set(key: string, value: string, options: DBLiveContentSetOptions): Promise<boolean> {
-		let versionId: string|undefined = undefined
+		let etag: string|undefined
+		let versionId: string|undefined
 
 		if (this.setEnv === "socket") {
 			const result = await this.socket.put(
@@ -86,6 +87,7 @@ export class DBLiveContent
 				value,
 				options,
 			)
+			etag = result.etag
 			versionId = result.versionId
 		}
 		else {
@@ -94,12 +96,16 @@ export class DBLiveContent
 				value,
 				options,
 			)
+			etag = result && !isErrorResult(result) && result.etag
 			versionId = result && !isErrorResult(result) && result.versionId
 		}
 
 		if (versionId) {
 			this.setCache(key, value)
-			this.setCache(`${key}-etag`, versionId)
+		}
+
+		if (etag) {
+			this.setCache(`${key}-etag`, etag)
 		}
 
 		return versionId !== undefined
