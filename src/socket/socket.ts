@@ -31,6 +31,17 @@ export class DBLiveSocket
 		
 		this.logger.debug(`get '${key}'`)
 
+		if (!this.isConnected) {
+			this.logger.debug(`get '${key}': socket not connected. Waiting for connection.`)
+			
+			// eslint-disable-next-line @typescript-eslint/no-misused-promises
+			return await new Promise(resolve => {
+				this.client.once("socket-connected", async() => {
+					resolve(await this.get(key))
+				})
+			})
+		}
+
 		return await new Promise(resolve => {
 			this.socket.emit(
 				"get",
@@ -81,6 +92,17 @@ export class DBLiveSocket
 			return {}
 
 		this.logger.debug(`put '${key}'='${value}', ${options.contentType}`)
+
+		if (!this.isConnected) {
+			this.logger.debug(`meta '${key}': socket not connected. Waiting for connection.`)
+			
+			// eslint-disable-next-line @typescript-eslint/no-misused-promises
+			return await new Promise(resolve => {
+				this.client.once("socket-connected", async() => {
+					resolve(await this.put(key, value, options))
+				})
+			})
+		}
 
 		return await new Promise(resolve => {
 			this.socket.emit(
