@@ -88,8 +88,11 @@ export class DBLiveSocket
 	}
 	
 	async put(key: string, value: string, options: DBLiveSocketPutOptions): Promise<DBLivePutResult> {
-		if (!this.socket)
-			return {}
+		if (!this.socket) {
+			return {
+				success: false,
+			}
+		}
 
 		this.logger.debug(`put '${key}'='${value}', ${options.contentType}`)
 
@@ -291,11 +294,13 @@ export class DBLiveSocket
 
 export type KeyEventData = {
 	action: "changed"|"deleted"
+	contentEncoding?: string
+	contentType: string
 	customArgs?: string
 	etag?: string
 	key: string
 	value?: string
-	version?: string
+	versionId?: string
 }
 
 export type DBLiveSocketGetResult = {

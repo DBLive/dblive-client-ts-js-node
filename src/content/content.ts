@@ -30,19 +30,19 @@ export class DBLiveContent
 		this.storage.removeItem(this.storageKeyFor(key))
 	}
 
-	async get(key: string, version: string|undefined = undefined): Promise<string|undefined> {
-		if (version) {
-			this.logger.debug(`get '${key}', version: '${version}'`)
+	async get(key: string, versionId: string|undefined = undefined): Promise<string|undefined> {
+		if (versionId) {
+			this.logger.debug(`get '${key}', versionId: '${versionId}'`)
 		}
 		else {
 			this.logger.debug(`get '${key}'`)
 		}
 
-		if (!version && this.socket && this.socket.isConnected) {
+		if (!versionId && this.socket && this.socket.isConnected) {
 			return await this.getFromSocket(key)
 		}
 
-		return await this.getFromUrl(key, version)
+		return await this.getFromUrl(key, versionId)
 	}
 
 	getFromCache(key: string): string|undefined {
@@ -79,7 +79,8 @@ export class DBLiveContent
 
 	async set(key: string, value: string, options: DBLiveContentSetOptions): Promise<boolean> {
 		let etag: string|undefined
-		let versionId: string|undefined
+		let success = false
+		// let versionId: string|undefined
 
 		if (this.setEnv === "socket") {
 			const result = await this.socket.put(
@@ -88,7 +89,8 @@ export class DBLiveContent
 				options,
 			)
 			etag = result.etag
-			versionId = result.versionId
+			success = result.success
+			// versionId = result.versionId
 		}
 		else {
 			const result = await this.api.set(
@@ -97,10 +99,11 @@ export class DBLiveContent
 				options,
 			)
 			etag = result && !isErrorResult(result) && result.etag
-			versionId = result && !isErrorResult(result) && result.versionId
+			success = (result && !isErrorResult(result) && result.success) || false
+			// versionId = result && !isErrorResult(result) && result.versionId
 		}
 
-		if (versionId) {
+		if (success) {
 			this.setCache(key, value)
 		}
 
@@ -108,7 +111,7 @@ export class DBLiveContent
 			this.setCache(`${key}-etag`, etag)
 		}
 
-		return versionId !== undefined
+		return success
 	}
 
 	setCache(key: string, value: string): void {
@@ -117,15 +120,15 @@ export class DBLiveContent
 		this.storage.setItem(this.storageKeyFor(key), value)
 	}
 
-	private async getFromUrl(key: string, version: string|undefined = undefined): Promise<string|undefined> {
-		if (version) {
-			this.logger.debug(`getFromUrl '${key}', version: '${version}'`)
+	private async getFromUrl(key: string, versionId: string|undefined = undefined): Promise<string|undefined> {
+		if (versionId) {
+			this.logger.debug(`getFromUrl '${key}', versionId: '${versionId}'`)
 		}
 		else {
 			this.logger.debug(`getFromUrl '${key}'`)
 		}
 
-		const url = this.urlFor(key, version),
+		const url = this.urlFor(key, versionId),
 			cachedValue = this.getFromCache(key),
 			etag = this.getFromCache(`${key}-etag`),
 			params: DBLiveRequestInit = {
@@ -206,12 +209,12 @@ export class DBLiveContent
 		return result.value
 	}
 
-	private storageKeyFor(key: string, version: string|undefined = undefined): string {
-		return `${this.appKey}/${key}${(version && `-${version}`) || ""}`
+	private storageKeyFor(key: string, versionId: string|undefined = undefined): string {
+		return `${this.appKey}/${key}${(versionId && `-${versionId}`) || ""}`
 	}
 
-	private urlFor(key: string, version: string|undefined = undefined): string {
-		return `${this.url}${key}${(version && `-${version}`) || ""}`
+	private urlFor(key: string, versionId: string|undefined = undefined): string {
+		return `${this.url}${key}${(versionId && `-${versionId}`) || ""}`
 	}
 }
 

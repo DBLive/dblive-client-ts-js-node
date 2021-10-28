@@ -97,6 +97,7 @@ type DBLiveAPIInitResult = {
 
 type DBLiveSetResult = {
 	etag?: string
+	success: boolean
 	versionId?: string
 }
 

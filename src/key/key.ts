@@ -11,7 +11,7 @@ export class DBLiveKey
 	private _socket?: DBLiveSocket
 	private clientKeyListenerId?: string
 	private currentValue?: string
-	private keyValueVersions: { [version: string]: string|undefined } = {}
+	private keyValueVersions: { [versionId: string]: string|undefined } = {}
 	private readonly listeners: DBLiveKeyEventListener[] = []
 	private readonly logger = new DBLiveLogger("DBLiveKey")
 
@@ -100,15 +100,15 @@ export class DBLiveKey
 
 		let doEmit = true
 
-		if (data.version) {
-			if (this.keyValueVersions[data.version] && this.keyValueVersions[data.version] === data.value) {
+		if (data.versionId) {
+			if (this.keyValueVersions[data.versionId] && this.keyValueVersions[data.versionId] === data.value) {
 				doEmit = false
 			}
 			else if (data.value) {
-				this.keyValueVersions[data.version] = data.value
+				this.keyValueVersions[data.versionId] = data.value
 			}
 			else {
-				delete this.keyValueVersions[data.version]
+				delete this.keyValueVersions[data.versionId]
 			}
 		}
 
@@ -125,7 +125,7 @@ export class DBLiveKey
 				}
 			}
 			else {
-				const value = this.content && await this.content.get(this.key, data.version)
+				const value = this.content && await this.content.get(this.key, data.versionId)
 
 				this.currentValue = value
 				this.emitToListeners("changed", {
@@ -202,10 +202,12 @@ export class DBLiveKey
 
 			void this.onKeyEvent({
 				action: data.action,
+				contentEncoding: data.contentEncoding,
+				contentType: data.contentType,
 				customArgs,
 				etag: data.etag,
 				value: data.value,
-				version: data.version,
+				versionId: data.versionId,
 			})
 		})
 
@@ -226,8 +228,10 @@ export class DBLiveKey
 
 type DBLiveKeyEventData = {
 	action: "changed"|"deleted"
+	contentEncoding?: string
+	contentType: string
 	customArgs?: unknown
 	etag?: string
 	value?: string
-	version?: string
+	versionId?: string
 }
