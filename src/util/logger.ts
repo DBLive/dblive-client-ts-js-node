@@ -44,7 +44,19 @@ export class DBLiveLogger
 		if (this.doLog(level)) {
 			if (level === DBLiveLoggerLevel.error) {
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-				console.error(`${this.name} ${DBLiveLoggerLevel[level].toUpperCase()}: ${message}`, ...optionalParams)
+				console.error(`${this.name}: ${message}`, ...optionalParams)
+			}
+			else if (level === DBLiveLoggerLevel.warn) {
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+				console.warn(`${this.name}: ${message}`, ...optionalParams)
+			}
+			else if (level === DBLiveLoggerLevel.info) {
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+				console.info(`${this.name}: ${message}`, ...optionalParams)
+			}
+			else if (level === DBLiveLoggerLevel.debug) {
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+				console.debug(`${this.name}: ${message}`, ...optionalParams)
 			}
 			else {
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
