@@ -103,5 +103,5 @@ type DBLiveSetResult = {
 
 export type DBLiveAPISetOptions = {
 	contentType: string
-	customArgs?: unknown
+	customArgs?: { [key: string]: string|number }
 }

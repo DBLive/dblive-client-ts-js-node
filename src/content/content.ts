@@ -1,20 +1,20 @@
 import { DBLiveAPI } from "../api/api"
 import { isErrorResult } from "../common/error.result"
 import { DBLiveRequest, DBLiveRequestInit } from "../common/request"
-import { DBLiveSocket, isSocketRedirectResult } from "../socket/socket"
+import { DBLiveSocket, DBLiveSocketState, isSocketRedirectResult } from "../socket/socket"
 import { DBLiveLogger } from "../util/logger"
 
 export class DBLiveContent
 {
 	private readonly logger = new DBLiveLogger("DBLiveContent")
-	private readonly storage: DBLiveContentCacheStorage = global.localStorage || new DBLiveContentLocalCacheStorage()
+	private readonly 	storage: DBLiveContentCacheStorage = global.localStorage || new DBLiveContentLocalCacheStorage()
 	private readonly request = new DBLiveRequest()
 
 	constructor(
 		private readonly appKey: string,
 		private readonly url: string,
 		private readonly api: DBLiveAPI,
-		public socket?: DBLiveSocket,
+		private readonly socket?: DBLiveSocket,
 		private readonly setEnv?: "api"|"socket",
 	) { }
 
@@ -38,7 +38,7 @@ export class DBLiveContent
 			this.logger.debug(`get '${key}'`)
 		}
 
-		if (!versionId && this.socket && this.socket.isConnected) {
+		if (!versionId && this.socket.state !== DBLiveSocketState.notConnected) {
 			return await this.getFromSocket(key)
 		}
 
@@ -54,9 +54,6 @@ export class DBLiveContent
 	async refresh(key: string): Promise<string|undefined> {
 		this.logger.debug(`refresh '${key}'`)
 
-		if (!this.socket)
-			return undefined
-		
 		const clientEtag = this.getFromCache(`${key}-etag`)
 		
 		if (!clientEtag) {
@@ -82,6 +79,12 @@ export class DBLiveContent
 		let success = false
 		// let versionId: string|undefined
 
+		const oldCachedValue = this.getFromCache(key)
+		const oldCachedEtagValue = this.getFromCache(`${key}-etag`)
+
+		this.setCache(key, value)
+		this.deleteCache(`${key}-etag`)
+
 		if (this.setEnv === "socket") {
 			const result = await this.socket.put(
 				key,
@@ -104,11 +107,13 @@ export class DBLiveContent
 		}
 
 		if (success) {
-			this.setCache(key, value)
+			if (etag) {
+				this.setCache(`${key}-etag`, etag)
+			}
 		}
-
-		if (etag) {
-			this.setCache(`${key}-etag`, etag)
+		else {
+			this.setCache(key, oldCachedValue)
+			this.setCache(`${key}-etag`, oldCachedEtagValue)
 		}
 
 		return success
@@ -184,11 +189,6 @@ export class DBLiveContent
 	private async getFromSocket(key: string): Promise<string|undefined> {
 		this.logger.debug(`getFromSocket '${key}'`)
 
-		if (!this.socket || !this.socket.isConnected) {
-			this.logger.warn("getFromSocket socket not connected")
-			return undefined
-		}
-		
 		const result = await this.socket.get(key)
 
 		if (isSocketRedirectResult(result)) {
@@ -263,5 +263,5 @@ class DBLiveContentLocalCacheStorage implements DBLiveContentCacheStorage
 
 type DBLiveContentSetOptions = {
 	contentType: string
-	customArgs?: unknown
+	customArgs?: { [key: string]: string|number }
 }

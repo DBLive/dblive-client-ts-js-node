@@ -1,3 +1,4 @@
+import { v1 as uuidv1 } from "uuid"
 import { DBLiveAPI } from "../api/api"
 import { isErrorResult } from "../common/error.result"
 import { DBLiveContent } from "../content/content"
@@ -11,55 +12,45 @@ import { DBLiveEventHandler } from "./eventhandler"
 export enum DBLiveClientStatus {
 	notConnected,
 	connecting,
-	connected
+	connected,
 }
 
 export class DBLiveClient
 {
+	public readonly clientId = uuidv1()
 	public status = DBLiveClientStatus.notConnected
-	private _content?: DBLiveContent
-	private _socket?: DBLiveSocket
 	
 	private api?: DBLiveAPI
+	private content?: DBLiveContent
 	private handlers: DBLiveEventHandler<{ [key: string]: unknown }>[] = []
 	private readonly keys: { [key: string]: DBLiveKey } = {}
+	private readonly lib = new DBLiveClientInternalLibrary(
+		async(): Promise<DBLiveContent> => {
+			if (!this.content) {
+				await this.connect()
+			}
+
+			return this.content
+		},
+		async(): Promise<DBLiveSocket> => {
+			if (!this.socket) {
+				await this.connect()
+			}
+
+			return this.socket
+		},
+	)
 	private readonly logger = new DBLiveLogger("DBLiveClient")
+	private socket?: DBLiveSocket
 
 	constructor(
 		private readonly appKey: string,
 	) { }
 
-	get socket(): DBLiveSocket|undefined {
-		return this._socket
-	}
-	set socket(socket: DBLiveSocket|undefined) {
-		this._socket = socket
-
-		if (this._content) {
-			this._content.socket = socket
-		}
-
-		for (const key in this.keys) {
-			this.keys[key].socket = socket
-		}
-	}
-
-	// eslint-disable-next-line @typescript-eslint/member-ordering
-	private get content(): DBLiveContent|undefined {
-		return this._content
-	}
-	private set content(content: DBLiveContent|undefined) {
-		this._content = content
-
-		for (const key in this.keys) {
-			this.keys[key].content = content
-		}
-	}
-
-	async connect(): Promise<void> {
+	async connect(): Promise<boolean> {
 		if (this.status !== DBLiveClientStatus.notConnected) {
 			if (this.status === DBLiveClientStatus.connecting) {
-				await new Promise<void>(resolve => this.once("connect", () => resolve()))
+				await new Promise<boolean>(resolve => this.once("connect", () => resolve(true)))
 			}
 			else if (this.status === DBLiveClientStatus.connected) {
 				// Nothing to do
@@ -97,17 +88,30 @@ export class DBLiveClient
 			initResult.setEnv,
 		)
 
-		await new Promise<void>(resolve => {
+		return await new Promise<boolean>(resolve => {
+			// todo: handle socket connecion errors
 			this.once("socket-connected", () => {
 				this.status = DBLiveClientStatus.connected
 				setTimeout(() => this.handleEvent("connect"), 1)
-				resolve()
+				resolve(true)
 			})
 		})
 	}
 
 	dispose(): void {
-		this.socket && this.socket.dispose()
+		if (this.socket) {
+			this.socket.dispose()
+		}
+
+		for (const key in this.keys) {
+			this.keys[key].dispose()
+			delete this.keys[key]
+		}
+
+		this.socket = undefined
+		this.api = undefined
+		this.content = undefined
+		this.status = DBLiveClientStatus.notConnected
 	}
 
 	async get(key: string, options: DBLiveClientGetOptions = {}): Promise<string|undefined> {
@@ -220,7 +224,10 @@ export class DBLiveClient
 	}
 
 	key(key: string): DBLiveKey {
-		return this.keys[key] = this.keys[key] || new DBLiveKey(key, this, this.content, this.socket)
+		// We don't need to await connection, we simply need to make sure content and socket are defined.
+		// void this.connect()
+
+		return this.keys[key] = this.keys[key] || new DBLiveKey(key, this, this.lib)
 	}
 
 	off(id: string): this {
@@ -232,7 +239,11 @@ export class DBLiveClient
 	}
 
 	on(event: string, handler: DBLiveCallback<{ [key: string]: unknown }>): string {
-		const eventHandler = new DBLiveEventHandler(event, false, handler)
+		const eventHandler = new DBLiveEventHandler(
+			event,
+			false,
+			(item: { [key: string]: unknown }) => handler(item),
+		)
 
 		this.handlers.push(eventHandler)
 
@@ -240,24 +251,23 @@ export class DBLiveClient
 	}
 
 	once(event: string, handler: DBLiveCallback<{ [key: string]: unknown }>): string {
-		const eventHandler = new DBLiveEventHandler(event, true, handler)
+		const eventHandler = new DBLiveEventHandler(
+			event,
+			true,
+			(item: { [key: string]: unknown }) => handler(item),
+		)
 
 		this.handlers.push(eventHandler)
 
 		return eventHandler.id
 	}
 
-	reset(): void {
+	async reset(): Promise<void> {
 		this.logger.debug("reset")
 
-		this.socket && this.socket.dispose()
+		this.dispose()
 
-		this.socket = undefined
-		this.api = undefined
-		this.content = undefined
-		this.status = DBLiveClientStatus.notConnected
-
-		void this.connect()
+		await this.connect()
 	}
 
 	async set<T>(key: string, value: string|T, options: DBLiveClientSetOptions = {}): Promise<boolean> {
@@ -274,10 +284,19 @@ export class DBLiveClient
 
 		this.logger.debug(`set ${key}='${value}'`)
 
+		const currentValue = this.content.getFromCache(key)
+		
+		if (value === currentValue) {
+			this.logger.debug(`set '${key}' - value hasn't changed`)
+			return true
+		}
+
 		this.handleEvent(`key:${key}`, {
 			action: "changed",
+			contentType,
 			customArgs: options.customArgs,
 			key,
+			oldValue: currentValue,
 			value,
 		})
 
@@ -286,7 +305,10 @@ export class DBLiveClient
 			value,
 			{
 				contentType,
-				customArgs: options.customArgs,
+				customArgs: {
+					...options.customArgs,
+					clientId: this.clientId,
+				},
 			},
 		)
 	}
@@ -304,15 +326,22 @@ export type DBLiveClientGetOptions = {
 }
 
 export type DBLiveClientSetOptions = {
-	customArgs?: unknown
+	customArgs?: { [key: string]: string|number }
 }
 
 export type DBLiveClientGetAndListenHandlerArgs = {
 	value: string|undefined
-	customArgs?: unknown
+	customArgs?: { [key: string]: string|number }
 }
 
 export type DBLiveClientGetJsonAndListenHandlerArgs<T> = {
 	value: T|undefined
-	customArgs?: unknown
+	customArgs?: { [key: string]: string|number }
+}
+
+export class DBLiveClientInternalLibrary {
+	constructor(
+		public content: () => Promise<DBLiveContent>,
+		public socket: () => Promise<DBLiveSocket>,
+	) { }
 }

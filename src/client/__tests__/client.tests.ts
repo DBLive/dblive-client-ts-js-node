@@ -97,9 +97,6 @@ describe("DBLiveClient", () => {
 				}
 				else if (call === 2) {
 					expect(args.value).toEqual(expectedValue)
-				}
-				else if (call === 3) {
-					expect(args.value).toEqual(expectedValue)
 					done()
 				}
 				else {
@@ -113,24 +110,19 @@ describe("DBLiveClient", () => {
 
 			let call = 0
 			
-			dbLive.getAndListen(key, args => {
+			dbLive.getAndListen(key, async(args) => {
 				call++
 
 				if (call === 1) {
 					expect(args.value).toBeUndefined()
 					expect(args.customArgs).toBeUndefined()
-					void dbLive.set(key, expectedValue, {
+					await dbLive.set(key, expectedValue, {
 						customArgs: {
 							hello: "world",
 						},
 					})
 				}
 				else if (call === 2) {
-					expect(args.value).toEqual(expectedValue)
-					expect(args.customArgs).not.toBeUndefined()
-					expect((args.customArgs as { hello: string }).hello).toEqual("world")
-				}
-				else if (call === 3) {
 					expect(args.value).toEqual(expectedValue)
 					expect(args.customArgs).not.toBeUndefined()
 					expect((args.customArgs as { hello: string }).hello).toEqual("world")
@@ -155,9 +147,6 @@ describe("DBLiveClient", () => {
 					await dbLive.set(key, expectedValue)
 				}
 				else if (call === 2) {
-					expect(args.value).toEqual(expectedValue)
-				}
-				else if (call === 3) {
 					expect(args.value).toEqual(expectedValue)
 					listener.listening = false
 					await dbLive.set(key, "new-value")
@@ -204,10 +193,6 @@ describe("DBLiveClient", () => {
 				else if (call === 2) {
 					expect(args.value).not.toBeUndefined()
 					expect((args.value as { hello: string }).hello).toEqual("world")
-				}
-				else if (call === 3) {
-					expect(args.value).not.toBeUndefined()
-					expect((args.value as { hello: string }).hello).toEqual("world")
 					done()
 				}
 				else {
@@ -231,10 +216,6 @@ describe("DBLiveClient", () => {
 					await dbLive.set(key, expectedValue)
 				}
 				else if (call === 2) {
-					expect(args.value).not.toBeUndefined()
-					expect((args.value as { hello: string }).hello).toEqual("world")
-				}
-				else if (call === 3) {
 					expect(args.value).not.toBeUndefined()
 					expect((args.value as { hello: string }).hello).toEqual("world")
 					listener.listening = false

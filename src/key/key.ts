@@ -1,43 +1,28 @@
-import { DBLiveClient } from "../client/client"
-import { DBLiveContent } from "../content/content"
-import { DBLiveSocket, KeyEventData } from "../socket/socket"
+import { DBLiveClient, DBLiveClientInternalLibrary } from "../client/client"
+import { KeyEventData } from "../socket/socket"
 import { DBLiveLogger } from "../util/logger"
 import { DBLiveKeyEventHandlerArgs, DBLiveKeyEventListener } from "./key.eventlistener"
 
 export class DBLiveKey
 {
-	private _content?: DBLiveContent
 	private _isWatching = true
-	private _socket?: DBLiveSocket
 	private clientKeyListenerId?: string
-	private currentValue?: string
-	private keyValueVersions: { [versionId: string]: string|undefined } = {}
+	private readonly clientSocketReconnectListenerId: string
 	private readonly listeners: DBLiveKeyEventListener[] = []
 	private readonly logger = new DBLiveLogger("DBLiveKey")
 
 	constructor(
 		private readonly key: string,
 		private readonly client: DBLiveClient,
-		content: DBLiveContent|undefined,
-		socket: DBLiveSocket|undefined,
+		private readonly lib: DBLiveClientInternalLibrary,
 	) {
-		this._socket = socket
-		this.content = content
+		void this.startWatching()
 
-		this.startWatching()
+		this.clientSocketReconnectListenerId = client.on("socket-connected", () => {
+			void this.restartSocketWatch()
+		})
 	}
 
-	get content(): DBLiveContent|undefined {
-		return this._content
-	}
-	set content(content: DBLiveContent|undefined) {
-		this._content = content
-
-		if (content)
-			void this.refresh()
-	}
-
-	// eslint-disable-next-line @typescript-eslint/member-ordering
 	get isWatching(): boolean {
 		return this._isWatching
 	}
@@ -48,21 +33,16 @@ export class DBLiveKey
 		this._isWatching = isWatching
 
 		if (isWatching) {
-			this.startWatching()
+			void this.startWatching()
 		}
 		else {
-			this.stopWatching()
+			void this.stopWatching()
 		}
 	}
 
-	// eslint-disable-next-line @typescript-eslint/member-ordering
-	get socket(): DBLiveSocket|undefined {
-		return this._socket
-	}
-	set socket(socket: DBLiveSocket|undefined) {
-		this._socket = socket
-
-		void this.restartSocketWatch()
+	dispose() {
+		this.client.off(this.clientSocketReconnectListenerId)
+		this.isWatching = false
 	}
 
 	onChanged(handler: (args: DBLiveKeyEventHandlerArgs) => void): DBLiveKeyEventListener {
@@ -98,82 +78,50 @@ export class DBLiveKey
 	private async onKeyEvent(data: DBLiveKeyEventData): Promise<void> {
 		this.logger.debug("onKeyEvent -", data)
 
-		let doEmit = true
-
-		if (data.versionId) {
-			if (this.keyValueVersions[data.versionId] && this.keyValueVersions[data.versionId] === data.value) {
-				doEmit = false
-			}
-			else if (data.value) {
-				this.keyValueVersions[data.versionId] = data.value
-			}
-			else {
-				delete this.keyValueVersions[data.versionId]
-			}
-		}
-
 		if (data.action === "changed") {
 			if (data.value) {
-				this.content && this.content.setCache(this.key, data.value)
+				this.emitToListeners("changed", {
+					customArgs: data.customArgs,
+					value: data.value,
+				})
+			}
+			else {
+				const content = await this.lib.content()
+				const currentValue = content.getFromCache(this.key)
+				const value = await content.get(this.key, data.versionId)
 
-				if (doEmit) {
-					this.currentValue = data.value
+				if (value && value !== currentValue) {
 					this.emitToListeners("changed", {
 						customArgs: data.customArgs,
-						value: data.value,
+						value,
 					})
 				}
 			}
-			else {
-				const value = this.content && await this.content.get(this.key, data.versionId)
-
-				this.currentValue = value
-				this.emitToListeners("changed", {
-					customArgs: data.customArgs,
-					value,
-				})
-			}
 		}
 		else if (data.action === "deleted") {
-			this.content && this.content.deleteCache(this.key)
-
-			if (doEmit) {
-				this.currentValue = undefined
-				this.emitToListeners("changed", {
-					customArgs: data.customArgs,
-					value: undefined,
-				})
-			}
+			this.emitToListeners("changed", {
+				customArgs: data.customArgs,
+				value: undefined,
+			})
 		}
 		else {
 			this.logger.warn(`No key event handler for action '${data.action as string}'`)
 		}
 	}
 
-	private async refresh(): Promise<void> {
-		if (!this.content)
-			return
-		
-		const refreshedValue = await this.content.refresh(this.key)
-
-		if (refreshedValue !== this.currentValue) {
-			this.currentValue = refreshedValue
-			this.emitToListeners("changed", {
-				value: refreshedValue,
-			})
-		}
-	}
-
 	private async restartSocketWatch(): Promise<void> {
 		if (this.isWatching) {
-			this.logger.debug(`Restarting socket watch on key ${this.key}`)
+			this.logger.debug(`starting socket watch on key ${this.key}`)
 
-			this.socket && this.socket.watch(this.key)
+			const content = await this.lib.content()
+			const socket = await this.lib.socket()
 
-			const value = this.content && await this.content.refresh(this.key)
+			await socket.watch(this.key)
 
-			if (value && value !== this.currentValue) {
-				this.currentValue = value
+			const currentValue = content.getFromCache(this.key)
+			const value = await content.refresh(this.key)
+
+			if (value && value !== currentValue) {
 				this.emitToListeners("changed", {
 					value,
 				})
@@ -181,23 +129,21 @@ export class DBLiveKey
 		}
 	}
 
-	private startWatching(): void {
+	private async startWatching(): Promise<void> {
 		if (this.clientKeyListenerId) {
-			this.stopWatching()
+			await this.stopWatching()
 		}
 
 		this.logger.debug("startWatching")
 
 		this.clientKeyListenerId = this.client.on(`key:${this.key}`, (data: KeyEventData) => {
-			let customArgs: unknown = data.customArgs
+			const customArgs = {
+				...data.customArgs,
+			}
 
-			if (data.customArgs && typeof(data.customArgs) === "string") {
-				try {
-					customArgs = JSON.parse(data.customArgs) as unknown
-				}
-				catch (jsonParseError) {
-					// Nothing to do
-				}
+			if (customArgs.clientId === this.client.clientId) {
+				this.logger.debug(`received key event for '${this.key}', but it originated from this client, so ignoring`)
+				return
 			}
 
 			void this.onKeyEvent({
@@ -211,10 +157,12 @@ export class DBLiveKey
 			})
 		})
 
-		this.socket && this.socket.watch(this.key)
+		const socket = await this.lib.socket()
+
+		await socket.watch(this.key)
 	}
 
-	private stopWatching(): void {
+	private async stopWatching(): Promise<void> {
 		this.logger.debug("stopWatching")
 
 		if (this.clientKeyListenerId) {
@@ -222,7 +170,9 @@ export class DBLiveKey
 			this.clientKeyListenerId = undefined
 		}
 
-		this.socket && this.socket.stopWatching(this.key)
+		const socket = await this.lib.socket()
+
+		await socket.stopWatching(this.key)
 	}
 }
 
@@ -230,8 +180,9 @@ type DBLiveKeyEventData = {
 	action: "changed"|"deleted"
 	contentEncoding?: string
 	contentType: string
-	customArgs?: unknown
+	customArgs?: { [key: string]: string|number }
 	etag?: string
+	oldValue?: string
 	value?: string
 	versionId?: string
 }

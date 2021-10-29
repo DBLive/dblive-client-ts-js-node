@@ -1,16 +1,15 @@
 import io, { ManagerOptions, Socket, SocketOptions } from "socket.io-client"
-import { DBLiveClient, DBLiveClientStatus } from "../client/client"
+import { DBLiveClient } from "../client/client"
 import { DBLiveErrorResult, isErrorResult } from "../common/error.result"
 import { DBLivePutResult } from "../types/putresult"
 import { DBLiveLogger } from "../util/logger"
 
 export class DBLiveSocket
 {
-	isConnected = false
+	public state = DBLiveSocketState.notConnected
 
-	private logger = new DBLiveLogger("DBLiveSocket")
-	private reconnectOnDisconnect = false
-	private socket?: Socket
+	private readonly logger = new DBLiveLogger("DBLiveSocket")
+	private socket!: Socket
 
 	constructor(
 		private readonly url: string,
@@ -22,24 +21,18 @@ export class DBLiveSocket
 	}
 
 	dispose(): void {
-		this.socket && this.socket.disconnect()
+		this.logger.debug("dispose")
+
+		this.socket.disconnect()
 	}
 
 	async get(key: string): Promise<DBLiveSocketGetResult|DBLiveSocketGetRedirectResult> {
-		if (!this.socket)
-			return {}
-		
 		this.logger.debug(`get '${key}'`)
 
-		if (!this.isConnected) {
-			this.logger.debug(`get '${key}': socket not connected. Waiting for connection.`)
-			
-			// eslint-disable-next-line @typescript-eslint/no-misused-promises
-			return await new Promise(resolve => {
-				this.client.once("socket-connected", async() => {
-					resolve(await this.get(key))
-				})
-			})
+		if (!await this.waitForConnection()) {
+			this.logger.warn(`cannot get '${key}', socket disconnected`)
+
+			return {}
 		}
 
 		return await new Promise(resolve => {
@@ -57,20 +50,12 @@ export class DBLiveSocket
 	}
 
 	async meta(key: string): Promise<DBLiveSocketMetaResult> {
-		if (!this.socket)
-			return {}
-		
 		this.logger.debug(`meta '${key}'`)
 
-		if (!this.isConnected) {
-			this.logger.debug(`meta '${key}': socket not connected. Waiting for connection.`)
-			
-			// eslint-disable-next-line @typescript-eslint/no-misused-promises
-			return await new Promise(resolve => {
-				this.client.once("socket-connected", async() => {
-					resolve(await this.meta(key))
-				})
-			})
+		if (!await this.waitForConnection()) {
+			this.logger.warn(`cannot meta '${key}', socket disconnected`)
+
+			return {}
 		}
 
 		return await new Promise(resolve => {
@@ -88,23 +73,14 @@ export class DBLiveSocket
 	}
 	
 	async put(key: string, value: string, options: DBLiveSocketPutOptions): Promise<DBLivePutResult> {
-		if (!this.socket) {
+		this.logger.debug(`put '${key}'='${value}', ${options.contentType}`)
+
+		if (!await this.waitForConnection()) {
+			this.logger.warn(`cannot put '${key}', socket disconnected`)
+			
 			return {
 				success: false,
 			}
-		}
-
-		this.logger.debug(`put '${key}'='${value}', ${options.contentType}`)
-
-		if (!this.isConnected) {
-			this.logger.debug(`meta '${key}': socket not connected. Waiting for connection.`)
-			
-			// eslint-disable-next-line @typescript-eslint/no-misused-promises
-			return await new Promise(resolve => {
-				this.client.once("socket-connected", async() => {
-					resolve(await this.put(key, value, options))
-				})
-			})
 		}
 
 		return await new Promise(resolve => {
@@ -125,31 +101,66 @@ export class DBLiveSocket
 	}
 
 	async stopWatching(key: string): Promise<void> {
-		if (this.client.status !== DBLiveClientStatus.connected) {
-			await this.client.connect()
-		}
-
 		this.logger.debug(`stop watching key '${key}'`)
 
-		this.socket.emit("stop-watching", {
-			key,
+		if (!await this.waitForConnection()) {
+			this.logger.warn(`cannot stop watching key '${key}', socket disconnected`)
+			return
+		}
+
+		return await new Promise<void>(resolve => {
+			this.socket.emit(
+				"stop-watching",
+				{
+					key,
+				},
+				(data: DBLiveSocketStopWatchingResult) => {
+					this.logger.debug("stop watching ack:", data)
+					resolve()
+				},
+			)
+		})
+	}
+
+	async waitForConnection(): Promise<boolean> {
+		return await new Promise<boolean>(resolve => {
+			if (this.state === DBLiveSocketState.connected)
+				return resolve(true)
+			
+			if (this.state === DBLiveSocketState.notConnected)
+				return resolve(false)
+			
+			this.client.once("socket-connected", () => resolve(true))
 		})
 	}
 
 	async watch(key: string): Promise<void> {
-		if (this.client.status !== DBLiveClientStatus.connected) {
-			await this.client.connect()
-		}
-
 		this.logger.debug(`watch key '${key}'`)
 
-		this.socket.emit("watch", {
-			key,
+		if (!await this.waitForConnection()) {
+			this.logger.warn(`cannot watch key '${key}', socket disconnected`)
+
+			return
+		}
+
+		return await new Promise<void>(resolve => {
+			this.socket.emit(
+				"watch",
+				{
+					key,
+				},
+				(data: DBLiveSocketWatchResult) => {
+					this.logger.debug("watch ack:", data)
+					resolve()
+				},
+			)
 		})
 	}
 
 	private connect(): void {
 		this.logger.debug(`Connecting to socketUrl ${this.url} with cookie: ${this.cookie}`)
+
+		this.state = DBLiveSocketState.connecting
 
 		const socketOpts: Partial<ManagerOptions & SocketOptions> = {
 			forceNew: true,
@@ -179,15 +190,10 @@ export class DBLiveSocket
 
 		this.socket.on("connect", () => this.onConnect())
 		this.socket.on("connect_error", (err: unknown) => this.onConnectError(err))
-		this.socket.on("connect_timeout", () => this.onConnectTimeout())
 		this.socket.on("dbl-error", (data: { error: DBLiveErrorResult }) => this.onDBLError(data))
 		this.socket.on("disconnect", (reason: string) => this.onDisconnect(reason))
 		this.socket.on("error", (err: unknown) => this.onError(err))
 		this.socket.on("key", (data: KeyEventData) => this.onKey(data))
-		this.socket.on("reconnect", (attemptNumber: number) => this.onReconnect(attemptNumber))
-		this.socket.on("reconnecting", (attemptNumber: number) => this.onReconnecting(attemptNumber))
-		this.socket.on("reconnect_error", (err: unknown) => this.onReconnectError(err))
-		this.socket.on("reconnect_failed", () => this.onReconnectFailed())
 		this.socket.on("reset", () => this.onReset())
 	}
 
@@ -201,6 +207,8 @@ export class DBLiveSocket
 			},
 			(data: DBLiveErrorResult|undefined) => {
 				if (data && isErrorResult(data)) {
+					this.state = DBLiveSocketState.notConnected
+
 					this.client.handleEvent("error", {
 						error: new Error(`Socket error '${data.code}': '${data.description}'`),
 					})
@@ -208,29 +216,27 @@ export class DBLiveSocket
 					return
 				}
 
+				this.logger.debug("appKey approved")
+
+				this.state = DBLiveSocketState.connected
+
 				this.client.handleEvent("socket-connected")
-				this.client.socket = this
 			},
 		)
 	}
 
 	private onConnect(): void {
 		this.logger.debug("connected")
-		this.isConnected = true
 		void this.emitAppKey()
 	}
 
 	private onConnectError(err: unknown): void {
 		this.logger.error("connect error:", err)
+
+		this.state = DBLiveSocketState.notConnected
+
 		this.client.handleEvent("error", {
 			error: err,
-		})
-	}
-
-	private onConnectTimeout(): void {
-		this.logger.error("connect timeout")
-		this.client.handleEvent("error", {
-			error: new Error("DBLive socket connection timed out"),
 		})
 	}
 
@@ -241,11 +247,17 @@ export class DBLiveSocket
 	private onDisconnect(reason: string): void {
 		this.logger.debug(`disconnect - '${reason}'`)
 
-		this.isConnected = false
-
-		if (this.reconnectOnDisconnect) {
-			this.reconnectOnDisconnect = false
+		if (this.state === DBLiveSocketState.reconnectOnDisconnect) {
+			this.logger.debug("reconnecting")
 			this.connect()
+		}
+		else if (reason === "ping timeout" || reason === "transport close" || reason === "transport error") {
+			this.logger.debug("automatically reconnecting")
+			this.state = DBLiveSocketState.reconnecting
+		}
+		else {
+			this.logger.debug("completely disconnected")
+			this.state = DBLiveSocketState.notConnected
 		}
 	}
 
@@ -253,7 +265,7 @@ export class DBLiveSocket
 		this.logger.error("Socket error:", err)
 
 		if (err === "Session ID unknown") {
-			this.reconnectOnDisconnect = true
+			this.state = DBLiveSocketState.reconnectOnDisconnect
 			this.socket.disconnect()
 		}
 	}
@@ -267,28 +279,10 @@ export class DBLiveSocket
 		this.client.handleEvent(`key:${data.key}`, data)
 	}
 
-	private onReconnect(attemptNumber: number): void {
-		this.logger.debug(`reconnected on ${attemptNumber}`)
-		this.isConnected = true
-	}
-
-	private onReconnecting(attemptNumber: number): void {
-		this.logger.debug(`reconnecting attempt ${attemptNumber}`)
-		this.isConnected = false
-	}
-
-	private onReconnectError(err: unknown): void {
-		this.logger.error("reconnect error:", err)
-	}
-
-	private onReconnectFailed(): void {
-		this.logger.error("reconnect failed")
-	}
-
 	private onReset(): void {
 		this.logger.debug("reset")
 
-		this.client.reset()
+		void this.client.reset()
 	}
 }
 
@@ -296,9 +290,10 @@ export type KeyEventData = {
 	action: "changed"|"deleted"
 	contentEncoding?: string
 	contentType: string
-	customArgs?: string
+	customArgs?: { [id: string]: string|number }
 	etag?: string
 	key: string
+	oldValue?: string
 	value?: string
 	versionId?: string
 }
@@ -321,6 +316,18 @@ export type DBLiveSocketPutOptions = {
 	contentType: string
 	customArgs?: unknown
 }
+
+export enum DBLiveSocketState {
+	notConnected,
+	connecting,
+	connected,
+	reconnecting,
+	reconnectOnDisconnect,
+}
+
+export type DBLiveSocketStopWatchingResult = Record<never, never>
+
+export type DBLiveSocketWatchResult = Record<never, never>
 
 export const isSocketRedirectResult = (args: DBLiveSocketGetResult|DBLiveSocketGetRedirectResult): args is DBLiveSocketGetRedirectResult => {
 	return (args as DBLiveSocketGetRedirectResult).url !== undefined

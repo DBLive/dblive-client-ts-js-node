@@ -35,5 +35,5 @@ type ListeningChangedHandler = (listening: boolean) => unknown
 
 export type DBLiveKeyEventHandlerArgs = {
 	value: string|undefined
-	customArgs?: unknown
+	customArgs?: { [key: string]: string|number }
 }
