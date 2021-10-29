@@ -134,7 +134,7 @@ export class DBLiveKey
 			await this.stopWatching()
 		}
 
-		this.logger.debug("startWatching")
+		this.logger.debug(`startWatching - '${this.key}'`)
 
 		this.clientKeyListenerId = this.client.on(`key:${this.key}`, (data: KeyEventData) => {
 			const customArgs = {

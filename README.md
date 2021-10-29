@@ -28,9 +28,10 @@ const dbLive = new DBLiveClient("+++ appKey +++")
 await dbLive.set("hello", "world")
 
 // get key "hello"
-dbLive.get("hello", value => {
-	console.log(`hello '${value}'`) // prints "hello 'world'"
-})
+const value = await dbLive.get("hello")
+
+// prints "hello 'world'"
+console.log(`hello '${value}'`) 
 
 // get and listen to key "hello"
 const listener = dbLive.getAndListen("hello", value => {
@@ -43,14 +44,15 @@ const listener = dbLive.getAndListen("hello", value => {
 listener.listening = true|false
 
 // can also set, get and listen to json objects
-dbLive.set("hello-json", {
+await dbLive.set("hello-json", {
 	"hello": "world"
 })
 
 // can also set, get and listen to json objects
-dbLive.getJson("hello-json", value => {
-	console.log(`hello '${value.hello}'`) // prints "hello 'world'"
-})
+const value = dbLive.getJson("hello-json")
+
+// prints "hello 'world'"
+console.log(`hello '${value.hello}'`) 
 
 const listener = dbLive.getJsonAndListen("hello-json", value => {
 	console.log(`hello '${value.hello}'`) // prints "hello 'world'" immediately
