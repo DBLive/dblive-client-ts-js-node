@@ -17,7 +17,7 @@ export enum DBLiveClientStatus {
 	connected,
 }
 
-export class DBLiveClient
+export class DBLiveClient implements Disposable
 {
 	public readonly clientId = uuidv1()
 	public status = DBLiveClientStatus.notConnected
@@ -265,7 +265,7 @@ export class DBLiveClient
 
 			await this.set<T>(key, newValue, {
 				customArgs: options.customArgs,
-				lockId: lock.lockId,
+				lock,
 			})
 
 			return true
@@ -371,7 +371,7 @@ export class DBLiveClient
 					...options.customArgs,
 					clientId: this.clientId,
 				},
-				lockId: options.lockId,
+				lockId: options.lock && options.lock.lockId,
 			},
 		)
 	}
@@ -460,5 +460,5 @@ export type DBLiveClientLockAndSetOptions = {
 
 export type DBLiveClientSetOptions = {
 	customArgs?: { [key: string]: string|number }
-	lockId?: string
+	lock?: DBLiveClientLock
 }

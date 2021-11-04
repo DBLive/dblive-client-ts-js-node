@@ -1,6 +1,7 @@
+import { Disposable } from "../common/interfaces/disposable"
 import { DBLiveCallback } from "../types/dblive.callback"
 
-export class DBLiveKeyEventListener
+export class DBLiveKeyEventListener implements Disposable
 {
 	private _listening = true
 
@@ -23,6 +24,10 @@ export class DBLiveKeyEventListener
 		for (const handler of this.listeningChangedHandlers) {
 			handler(listening)
 		}
+	}
+
+	dispose(): void {
+		this.listening = false
 	}
 
 	onListeningChanged(handler: ListeningChangedHandler): this {

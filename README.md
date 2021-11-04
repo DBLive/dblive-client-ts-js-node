@@ -65,21 +65,24 @@ listener.listening = true|false
 ```
 
 #### Methods
-`set(key: string, value: string)`: Sets `key` to a string value.
+`async set(key: string, value: string)`: Sets `key` to a string value.
 
-`set(key: string, value: object)`: Sets `key` to an object value. The object can handle any property that can be serialized into JSON.
+`async set<T>(key: string, value: T)`: Sets `key` to an object value. The object can handle any property that can be serialized into JSON.
 
-`get(key: string, callback: (value: string|undefined))`: Gets the current **string** value of `key`
+`async get(key: string): Promise<string|undefined>`: Gets the current **string** value of `key`
 
-`getJson<T>(key: string, callback: (value: T|undefined))`: Gets the current **object** value of `key`
+`async getJson<T>(key: string): Promise<T|undefined>`: Gets the current **object** value of `key`
 
-`getAndListen(key: string, handler: (value: string|undefined)) => DBLiveKeyEventListener`: Gets the current **string** value of `key` returned immediately, and then listens for any updates to its value. Set the `.listening` property of the returned `DBLiveKeyEventListener` to **false** to stop listening.
+`getAndListen(key: string, handler: (value: string|undefined)): DBLiveKeyEventListener`: Gets the current **string** value of `key` returned immediately, and then listens for any updates to its value. Set the `.listening` property of the returned `DBLiveKeyEventListener` to **false** to stop listening.
 
-`getJsonAndListen<T>(key: string, handler: (value: T|undefined)) => DBLiveKeyEventListener`: Gets the current **object** value of `key` returned immediately, and then listens for any updates to its value. Set the `.listening` property of the returned `DBLiveKeyEventListener` to **false** to stop listening.
+`getJsonAndListen<T>(key: string, handler: (value: T|undefined)): DBLiveKeyEventListener`: Gets the current **object** value of `key` returned immediately, and then listens for any updates to its value. Set the `.listening` property of the returned `DBLiveKeyEventListener` to **false** to stop listening.
+
+`async lock(key: string): Promise<DBLiveClientLock>`: Acquires a lock on a key. No other clients can change the value of the key while you have the lock. The lock will timeout, however you can configure what timeout you need. By default, the timeout is 1000ms or 1s. To unlock, call `.unlock()` on the returned **DBLiveClientLock**.
+
+`async lockAndSet(key: string, handler: (currentValue: T|string|undefined) => Promise<T|string>|T|string): Promise<boolean>`: A helper method for locking, setting a key's value and then unlocking. Use this to help avoid conflicts between devices.
 
 #### Planned future functionality
-  * `set` and `get` will be restricted based on appKey. Individual devices can be granted additional functionalitality via a *secret key* that can be stored securely in your backend system.
-  * `lockAndSet`: Will grant a temporary lock on a key so no other device can change its value. This will help assure that setting the value will not override a `set` from another device.
+  * `set` and `get` will have the ability to restricted per device. Individual devices can be granted additional functionalitality via a *secret key* that can be stored securely in your backend.
   * `Numeric values`: Numbers will have additional functionality, such as incrementing and decrementing in a way that 2 devices can simultaneously do it.
   * `Service Agent Push Notifications`: We'll accept push tokens so we can update key data in the background.
 
