@@ -17,6 +17,25 @@ See this client in action with a tic-tac-toe web app. This is obviously **not** 
 ## Usage
 
 ### Typescript/JS
+
+#### Methods
+`async set(key: string, value: string)`: Sets `key` to a string value.
+
+`async set<T>(key: string, value: T)`: Sets `key` to an object value. The object can handle any property that can be serialized into JSON.
+
+`async get(key: string): Promise<string|undefined>`: Gets the current **string** value of `key`
+
+`async getJson<T>(key: string): Promise<T|undefined>`: Gets the current **object** value of `key`
+
+`getAndListen(key: string, handler: (value: string|undefined)): DBLiveKeyEventListener`: Gets the current **string** value of `key` returned immediately, and then listens for any updates to its value. Set the `.listening` property of the returned `DBLiveKeyEventListener` to **false** to stop listening.
+
+`getJsonAndListen<T>(key: string, handler: (value: T|undefined)): DBLiveKeyEventListener`: Gets the current **object** value of `key` returned immediately, and then listens for any updates to its value. Set the `.listening` property of the returned `DBLiveKeyEventListener` to **false** to stop listening.
+
+`async lock(key: string): Promise<DBLiveClientLock>`: Acquires a lock on a key. No other clients can change the value of the key while you have the lock. The lock will timeout, however you can configure what timeout you need. By default, the timeout is 1000ms or 1s. To unlock, call `.unlock()` on the returned **DBLiveClientLock**.
+
+`async lockAndSet(key: string, handler: (currentValue: T|string|undefined) => Promise<T|string>|T|string): Promise<boolean>`: A helper method for locking, setting a key's value and then unlocking. Use this to help avoid conflicts between devices.
+
+#### Examples
 ```typescript
 import { DBLiveClient } from "@dblive/client-js" 
 // or
@@ -89,23 +108,6 @@ await dbLive.lockAndSet("hello-lock", (currentValue: string|undefined): string =
 	return `${numericValue + 1}`
 })
 ```
-
-#### Methods
-`async set(key: string, value: string)`: Sets `key` to a string value.
-
-`async set<T>(key: string, value: T)`: Sets `key` to an object value. The object can handle any property that can be serialized into JSON.
-
-`async get(key: string): Promise<string|undefined>`: Gets the current **string** value of `key`
-
-`async getJson<T>(key: string): Promise<T|undefined>`: Gets the current **object** value of `key`
-
-`getAndListen(key: string, handler: (value: string|undefined)): DBLiveKeyEventListener`: Gets the current **string** value of `key` returned immediately, and then listens for any updates to its value. Set the `.listening` property of the returned `DBLiveKeyEventListener` to **false** to stop listening.
-
-`getJsonAndListen<T>(key: string, handler: (value: T|undefined)): DBLiveKeyEventListener`: Gets the current **object** value of `key` returned immediately, and then listens for any updates to its value. Set the `.listening` property of the returned `DBLiveKeyEventListener` to **false** to stop listening.
-
-`async lock(key: string): Promise<DBLiveClientLock>`: Acquires a lock on a key. No other clients can change the value of the key while you have the lock. The lock will timeout, however you can configure what timeout you need. By default, the timeout is 1000ms or 1s. To unlock, call `.unlock()` on the returned **DBLiveClientLock**.
-
-`async lockAndSet(key: string, handler: (currentValue: T|string|undefined) => Promise<T|string>|T|string): Promise<boolean>`: A helper method for locking, setting a key's value and then unlocking. Use this to help avoid conflicts between devices.
 
 #### Planned future functionality
   * `set` and `get` will have the ability to restricted per device. Individual devices can be granted additional functionalitality via a *secret key* that can be stored securely in your backend.
