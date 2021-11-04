@@ -62,6 +62,32 @@ const listener = dbLive.getJsonAndListen("hello-json", value => {
 
 // can start/stop listener by changing "listening" on the listener
 listener.listening = true|false
+
+// lock a key to avoid conflicts between devices
+const lock = await dbLive.lock("hello-lock")
+
+// In order to set values while you have the lock, you'll need to pass it in.
+await dbLive.set("hello-lock", "value-within-lock", {
+	lock: lock
+})
+
+// Then you can unlock the key
+await lock.unlock()
+
+// Use the "using" helper to unlock a key even if there's an exception in your code.
+// No need to worry about explicity calling '.unlock()'
+using(await dbLive.lock("hello-lock"), async(lock) => {
+	await dbLive.set("hello-lock", "value-within-lock", {
+		lock: lock
+	})
+})
+
+// OR, you could use the helper method to help avoid conflicts between devices
+await dbLive.lockAndSet("hello-lock", (currentValue: string|undefined): string => {
+	const numericValue = (currentValue && parseInt(currentValue)) || 0
+
+	return `${numericValue + 1}`
+})
 ```
 
 #### Methods
