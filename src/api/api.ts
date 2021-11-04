@@ -47,6 +47,7 @@ export class DBLiveAPI
 				"content-type": options.contentType,
 				"custom-args": options.customArgs && JSON.stringify(options.customArgs),
 				key,
+				lockId: options.lockId,
 			},
 		})
 
@@ -104,4 +105,5 @@ type DBLiveSetResult = {
 export type DBLiveAPISetOptions = {
 	contentType: string
 	customArgs?: { [key: string]: string|number }
+	lockId: string
 }

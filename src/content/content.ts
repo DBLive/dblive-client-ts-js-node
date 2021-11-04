@@ -7,7 +7,7 @@ import { DBLiveLogger } from "../util/logger"
 export class DBLiveContent
 {
 	private readonly logger = new DBLiveLogger("DBLiveContent")
-	private readonly 	storage: DBLiveContentCacheStorage = global.localStorage || new DBLiveContentLocalCacheStorage()
+	private readonly storage: DBLiveContentCacheStorage = global.localStorage || new DBLiveContentLocalCacheStorage()
 	private readonly request = new DBLiveRequest()
 
 	constructor(
@@ -30,31 +30,48 @@ export class DBLiveContent
 		this.storage.removeItem(this.storageKeyFor(key))
 	}
 
-	async get(key: string, versionId: string|undefined = undefined): Promise<string|undefined> {
+	async get<T>(key: string, versionId: string|undefined = undefined): Promise<DBLiveContentGetResult<T>|undefined> {
 		if (versionId) {
 			this.logger.debug(`get '${key}', versionId: '${versionId}'`)
 		}
 		else {
 			this.logger.debug(`get '${key}'`)
 		}
+		
+		let rawResult: DBLiveContentGetRawResult|undefined
 
 		if (!versionId && this.socket.state !== DBLiveSocketState.notConnected) {
-			return await this.getFromSocket(key)
+			rawResult = await this.getFromSocket(key)
+		}
+		else {
+			rawResult = await this.getFromUrl(key, versionId)
 		}
 
-		return await this.getFromUrl(key, versionId)
+		if (!rawResult)
+			return undefined
+
+		return this.parseValueFromContentType<T>(rawResult.value, rawResult.contentType)
 	}
 
-	getFromCache(key: string): string|undefined {
+	getFromCache<T>(key: string): DBLiveContentGetResult<T>|undefined {
 		this.logger.debug(`getFromCache '${key}'`)
+
+		return this.parseValueFromContentType(
+			this.getValueFromCache(key),
+			this.getContentTypeFromCache(key),
+		)
+	}
+
+	getValueFromCache(key: string): string|undefined {
+		this.logger.debug(`getValueFromCache '${key}'`)
 
 		return this.storage.getItem(this.storageKeyFor(key))
 	}
 
-	async refresh(key: string): Promise<string|undefined> {
+	async refresh<T>(key: string): Promise<DBLiveContentGetResult<T>|undefined> {
 		this.logger.debug(`refresh '${key}'`)
 
-		const clientEtag = this.getFromCache(`${key}-etag`)
+		const clientEtag = this.getEtagFromCache(key)
 		
 		if (!clientEtag) {
 			this.logger.debug("refresh invalid - nothing stored locally")
@@ -66,6 +83,7 @@ export class DBLiveContent
 		
 		if (clientEtag === serverEtag) {
 			this.logger.debug("refresh complete - values hasn't changed")
+
 			return this.getFromCache(key)
 		}
 
@@ -74,58 +92,106 @@ export class DBLiveContent
 		return await this.get(key)
 	}
 
-	async set(key: string, value: string, options: DBLiveContentSetOptions): Promise<boolean> {
+	async set<T>(key: string, value: T|string, contentType: DBLiveContentType, options: DBLiveContentSetOptions): Promise<boolean> {
 		let etag: string|undefined
 		let success = false
-		// let versionId: string|undefined
 
-		const oldCachedValue = this.getFromCache(key)
-		const oldCachedEtagValue = this.getFromCache(`${key}-etag`)
+		const cachedValue = this.getValueFromCache(key)
+		const cachedEtag = this.getEtagFromCache(key)
+		const cachedContentType = this.getContentTypeFromCache(key)
+
+		if (typeof(value) !== "string") {
+			value = JSON.stringify(value)
+		}
 
 		this.setCache(key, value)
-		this.deleteCache(`${key}-etag`)
+		this.setContentTypeCache(key, contentType)
+		this.deleteEtagCache(key)
 
 		if (this.setEnv === "socket") {
 			const result = await this.socket.put(
 				key,
 				value,
-				options,
+				{
+					contentType,
+					customArgs: options.customArgs,
+					lockId: options.lockId,
+				},
 			)
 			etag = result.etag
 			success = result.success
-			// versionId = result.versionId
 		}
 		else {
 			const result = await this.api.set(
 				key,
 				value,
-				options,
+				{
+					contentType,
+					customArgs: options.customArgs,
+					lockId: options.lockId,
+				},
 			)
 			etag = result && !isErrorResult(result) && result.etag
 			success = (result && !isErrorResult(result) && result.success) || false
-			// versionId = result && !isErrorResult(result) && result.versionId
 		}
 
 		if (success) {
 			if (etag) {
-				this.setCache(`${key}-etag`, etag)
+				this.setEtagCache(key, etag)
 			}
 		}
 		else {
-			this.setCache(key, oldCachedValue)
-			this.setCache(`${key}-etag`, oldCachedEtagValue)
+			this.setCache(key, cachedValue)
+			this.setEtagCache(key, cachedEtag)
+			this.setContentTypeCache(key, cachedContentType)
 		}
 
 		return success
 	}
 
-	setCache(key: string, value: string): void {
-		this.logger.debug(`setCache '${key}': '${value}'`)
-
-		this.storage.setItem(this.storageKeyFor(key), value)
+	private deleteContentTypeCache(key: string): void {
+		this.deleteCache(`${key}-contenttype`)
 	}
 
-	private async getFromUrl(key: string, versionId: string|undefined = undefined): Promise<string|undefined> {
+	private deleteEtagCache(key: string): void {
+		this.deleteCache(`${key}-etag`)
+	}
+
+	private getContentTypeFromCache(key: string): string|undefined {
+		return this.getValueFromCache(`${key}-contenttype`)
+	}
+
+	private getEtagFromCache(key: string): string|undefined {
+		return this.getValueFromCache(`${key}-etag`)
+	}
+
+	private async getFromSocket(key: string): Promise<DBLiveContentGetRawResult|undefined> {
+		this.logger.debug(`getFromSocket '${key}'`)
+
+		const result = await this.socket.get(key)
+
+		if (isSocketRedirectResult(result)) {
+			this.logger.debug(`getFromSocket redirect result: ${result.url}`)
+			return await this.getFromUrl(key)
+		}
+
+		if (result.value) {
+			this.logger.debug("getFromSocket result")
+			this.setCache(key, result.value)
+
+			if (result.etag) {
+				this.logger.debug(`getFromSocket new etag: ${result.etag}`)
+				this.setEtagCache(key, result.etag)
+			}
+		}
+
+		return result.value ? {
+			contentType: result.contentType,
+			value: result.value,
+		} : undefined
+	}
+
+	private async getFromUrl(key: string, versionId: string|undefined = undefined): Promise<DBLiveContentGetRawResult|undefined> {
 		if (versionId) {
 			this.logger.debug(`getFromUrl '${key}', versionId: '${versionId}'`)
 		}
@@ -134,8 +200,8 @@ export class DBLiveContent
 		}
 
 		const url = this.urlFor(key, versionId),
-			cachedValue = this.getFromCache(key),
-			etag = this.getFromCache(`${key}-etag`),
+			cachedValue = this.getValueFromCache(key),
+			etag = this.getEtagFromCache(key),
 			params: DBLiveRequestInit = {
 				cache: "no-cache",
 				keepalive: true,
@@ -152,61 +218,86 @@ export class DBLiveContent
 		if (!response)
 			return undefined
 		
-		let result = await response.text()
+		let value = await response.text()
+		const contentType = response.headers.get("content-type") || response.headers.get("Content-Type") || ""
 
 		if (response.status === 200) {
 			this.logger.debug("getFromUrl 200 response")
-			this.setCache(key, result)
+			this.setCache(key, value)
 
 			const newEtag = response.headers.get("etag")
 			if (newEtag) {
 				this.logger.debug(`getFromUrl new etag: ${newEtag}`)
-				this.setCache(`${key}-etag`, newEtag)
+				this.setEtagCache(key, newEtag)
 			}
 		}
 		else if (response.status === 304) {
 			this.logger.debug("getFromUrl 304 - returning cached version")
 
-			if (result && result.length) {
-				this.setCache(key, result)
+			if (value && value.length) {
+				this.setCache(key, value)
 			}
 			else {
-				result = cachedValue
+				value = cachedValue
 			}
 		}
 		else if (response.status === 404 || response.status === 403) {
 			this.logger.debug(`getFromUrl ${response.status} - key not found`)
-			result = undefined
+			value = undefined
 		}
 		else {
 			this.logger.warn(`getFromUrl unhandled response status code ${response.status}`)
-			result = undefined
+			value = undefined
 		}
 
+		return value ? {
+			contentType,
+			value,
+		} : undefined
+	}
+
+	private parseValueFromContentType<T>(value: string|undefined, contentType: string|undefined): DBLiveContentGetResult<T>|undefined {
+		if (!value)
+			return undefined
+
+		const result: DBLiveContentGetResult<T> = {
+			contentType: DBLiveContentType.string,
+			value,
+		}
+		
+		const contentTypeValueSplit = (contentType && contentType.split(";")) || []
+
+		for (const contentTypeValue of contentTypeValueSplit) {
+			if (contentTypeValue.trim().toLowerCase() === DBLiveContentType.json) {
+				try {
+					const jsonValue = JSON.parse(value) as T
+					result.value = jsonValue
+					result.contentType = DBLiveContentType.json
+				}
+				catch(err) {
+					this.logger.warn(`Could not json parse value. contentType: '${contentType}', value: '${value}'`, err)
+					result.contentType = DBLiveContentType.string
+				}
+
+				break
+			}
+		}
+	
 		return result
 	}
 
-	private async getFromSocket(key: string): Promise<string|undefined> {
-		this.logger.debug(`getFromSocket '${key}'`)
+	private setCache(key: string, value: string): void {
+		this.logger.debug(`setCache '${key}': '${value}'`)
 
-		const result = await this.socket.get(key)
+		this.storage.setItem(this.storageKeyFor(key), value)
+	}
 
-		if (isSocketRedirectResult(result)) {
-			this.logger.debug(`getFromSocket redirect result: ${result.url}`)
-			return await this.getFromUrl(key)
-		}
+	private setContentTypeCache(key: string, contentType: string): void {
+		this.setCache(`${key}-contenttype`, contentType)
+	}
 
-		if (result.value) {
-			this.logger.debug("getFromSocket result")
-			this.setCache(key, result.value)
-
-			if (result.etag) {
-				this.logger.debug(`getFromSocket new etag: ${result.etag}`)
-				this.setCache(`${key}-etag`, result.etag)
-			}
-		}
-
-		return result.value
+	private setEtagCache(key: string, value: string): void {
+		this.setCache(`${key}-etag`, value)
 	}
 
 	private storageKeyFor(key: string, versionId: string|undefined = undefined): string {
@@ -261,7 +352,22 @@ class DBLiveContentLocalCacheStorage implements DBLiveContentCacheStorage
 	}
 }
 
+type DBLiveContentGetResult<T> = {
+	contentType: DBLiveContentType
+	value: T|string
+}
+
+type DBLiveContentGetRawResult = {
+	contentType?: string
+	value: string
+}
+
 type DBLiveContentSetOptions = {
-	contentType: string
 	customArgs?: { [key: string]: string|number }
+	lockId?: string
+}
+
+export enum DBLiveContentType {
+	string = "text/plain",
+	json = "application/json",
 }

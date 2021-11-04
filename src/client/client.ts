@@ -1,7 +1,9 @@
 import { v1 as uuidv1 } from "uuid"
 import { DBLiveAPI } from "../api/api"
 import { isErrorResult } from "../common/error.result"
-import { DBLiveContent } from "../content/content"
+import { Disposable } from "../common/interfaces/disposable"
+import { using } from "../common/using"
+import { DBLiveContent, DBLiveContentType } from "../content/content"
 import { DBLiveKey } from "../key/key"
 import { DBLiveKeyEventListener } from "../key/key.eventlistener"
 import { DBLiveSocket } from "../socket/socket"
@@ -57,9 +59,10 @@ export class DBLiveClient
 			}
 			else {
 				this.logger.error("Unhandled status:", this.status)
+				return false
 			}
 
-			return
+			return true
 		}
 
 		this.status = DBLiveClientStatus.connecting
@@ -122,16 +125,29 @@ export class DBLiveClient
 		this.logger.debug(`get(${key})`)
 
 		if (!options.bypassCache) {
-			const cachedValue = this.content.getFromCache(key)
+			const cachedValue = this.content.getFromCache<string>(key)
 
 			if (cachedValue) {
-				this.logger.debug("Key exists in cache")
-				return cachedValue
+				if (cachedValue.contentType === DBLiveContentType.string) {
+					this.logger.debug("Key exists in cache")
+					return cachedValue.value
+				}
+				else {
+					this.logger.warn(`Tried to get key '${key}' from cache as string, but content-type is '${cachedValue.contentType}'.`)
+				}
 			}
 		}
 
 		try {
-			return await this.content.get(key)
+			const result = await this.content.get<string>(key)
+
+			if (result) {
+				if (result.contentType === DBLiveContentType.string) {
+					return result.value
+				}
+
+				this.logger.warn(`Tried to get key '${key}' from server as string, but content-type is '${result.contentType}'.`)
+			}
 		}
 		catch(err) {
 			this.logger.error(`Error while getting '${key}':`, err)
@@ -148,36 +164,35 @@ export class DBLiveClient
 		return this.key(key).onChanged(handler)
 	}
 
-	async getJson<T>(key: string): Promise<T|undefined> {
+	async getJson<T>(key: string, options: DBLiveClientGetOptions = {}): Promise<T|undefined> {
 		if (this.status !== DBLiveClientStatus.connected) {
 			await this.connect()
 		}
 
 		this.logger.debug(`getJson(${key})`)
 
-		const cachedValue = this.content.getFromCache(key)
+		if (!options.bypassCache) {
+			const cachedValue = this.content.getFromCache<T>(key)
 
-		if (cachedValue) {
-			try {
-				this.logger.debug("Key exists in cache")
-				const jsonValue = JSON.parse(cachedValue) as T
-				return jsonValue
-			}
-			catch(err) {
-				this.logger.error("Could not json parse value in cache:", err)
+			if (cachedValue) {
+				if (cachedValue.contentType === DBLiveContentType.json) {
+					this.logger.debug("Key exists in cache")
+					return cachedValue.value as T
+				}
+
+				this.logger.warn(`Tried to get key '${key}' from cache as json, but content-type is '${cachedValue.contentType}'.`)
 			}
 		}
 
 		try {
-			const value = await this.content.get(key)
+			const result = await this.content.get(key)
 
-			try {
-				const jsonValue = value && JSON.parse(value) as T
-				return jsonValue
-			}
-			catch(err) {
-				this.logger.error(`Could not json parse key '${key}' with value '${value}':`, err)
-				return undefined
+			if (result) {
+				if (result.contentType === DBLiveContentType.json) {
+					return result.value as T
+				}
+
+				this.logger.warn(`Tried to get key '${key}' from server as json, but content-type is '${result.contentType}'.`)
 			}
 		}
 		catch(err) {
@@ -207,6 +222,53 @@ export class DBLiveClient
 					value: undefined,
 				})
 			}
+		})
+	}
+
+	async lock(key: string, options: DBLiveClientLockOptions = {}): Promise<DBLiveClientLock> {
+		if (this.status !== DBLiveClientStatus.connected) {
+			await this.connect()
+		}
+
+		this.logger.debug(`lock(${key})`)
+
+		const lockResult = await this.socket.lock(key, {
+			timeout: options.timeout,
+		})
+
+		if (!lockResult.lockId) {
+			this.logger.error(`Could not lock '${key}', server didn't return lockId`)
+			throw new Error(`Could not successfully lock '${key}.'`)
+		}
+
+		return new DBLiveClientLock(
+			lockResult.lockId,
+			async(lockId: string): Promise<boolean> => await this.unlock(key, lockId),
+		)
+	}
+
+	async lockAndSet<T>(key: string, handler: (currentValue: T|string|undefined) => Promise<T|string>|T|string, options: DBLiveClientLockAndSetOptions = {}): Promise<boolean> {
+		if (this.status !== DBLiveClientStatus.connected) {
+			await this.connect()
+		}
+
+		this.logger.debug(`lockAndSet(${key})`)
+
+		return await using(await this.lock(key), async(lock: DBLiveClientLock) => {
+			const current = await this.content.get<T>(key)
+			const newValue = await handler(current && current.value)
+	
+			if (!newValue) {
+				this.logger.warn(`Can't set '${key}' within a lock to an undefined value`)
+				return false
+			}
+
+			await this.set<T>(key, newValue, {
+				customArgs: options.customArgs,
+				lockId: lock.lockId,
+			})
+
+			return true
 		})
 	}
 
@@ -275,16 +337,16 @@ export class DBLiveClient
 			await this.connect()
 		}
 
-		let contentType = "text/plain"
+		let contentType = DBLiveContentType.string
 
 		if (typeof(value) !== "string") {
 			value = JSON.stringify(value)
-			contentType = "application/json"
+			contentType = DBLiveContentType.json
 		}
 
 		this.logger.debug(`set ${key}='${value}'`)
 
-		const currentValue = this.content.getFromCache(key)
+		const currentValue = this.content.getValueFromCache(key)
 		
 		if (value === currentValue) {
 			this.logger.debug(`set '${key}' - value hasn't changed`)
@@ -303,12 +365,13 @@ export class DBLiveClient
 		return await this.content.set(
 			key,
 			value,
+			contentType,
 			{
-				contentType,
 				customArgs: {
 					...options.customArgs,
 					clientId: this.clientId,
 				},
+				lockId: options.lockId,
 			},
 		)
 	}
@@ -319,14 +382,18 @@ export class DBLiveClient
 		this.socket = new DBLiveSocket(url, this.appKey, this, cookie)
 	}
 
-}
+	private async unlock(key: string, lockId: string): Promise<boolean> {
+		if (this.status !== DBLiveClientStatus.connected) {
+			await this.connect()
+		}
 
-export type DBLiveClientGetOptions = {
-	bypassCache?: boolean
-}
+		this.logger.debug(`unlock(${key})`)
 
-export type DBLiveClientSetOptions = {
-	customArgs?: { [key: string]: string|number }
+		const unlockResult = await this.socket.unlock(key, lockId)
+
+		return unlockResult.success
+	}
+
 }
 
 export type DBLiveClientGetAndListenHandlerArgs = {
@@ -339,9 +406,59 @@ export type DBLiveClientGetJsonAndListenHandlerArgs<T> = {
 	customArgs?: { [key: string]: string|number }
 }
 
-export class DBLiveClientInternalLibrary {
+export type DBLiveClientGetOptions = {
+	bypassCache?: boolean
+}
+
+export class DBLiveClientInternalLibrary
+{
 	constructor(
 		public content: () => Promise<DBLiveContent>,
 		public socket: () => Promise<DBLiveSocket>,
 	) { }
+}
+
+export class DBLiveClientLock implements Disposable
+{
+	isLocked = true
+
+	constructor(
+		public readonly lockId: string,
+		private readonly clientUnlock: (lockId: string) => Promise<boolean>,
+	) { }
+
+	async dispose() {
+		await this.unlock()
+	}
+
+	async unlock(): Promise<boolean> {
+		if (!this.isLocked)
+			return true
+
+		if (await this.clientUnlock(this.lockId)) {
+			this.isLocked = false
+			return true
+		}
+
+		return false
+	}
+}
+
+export type DBLiveClientLockOptions = {
+	timeout?: number
+}
+
+export type DBLiveClientLockAndSetHandlerParams = {
+	contentType?: string
+	value?: string
+}
+
+export type DBLiveClientLockAndSetOptions = {
+	customArgs?: { [key: string]: string|number }
+	timeout?: number
+}
+
+export type DBLiveClientSetOptions = {
+	customArgs?: { [key: string]: string|number }
+	lockId?: string
 }

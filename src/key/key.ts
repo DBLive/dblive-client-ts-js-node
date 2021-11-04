@@ -87,8 +87,9 @@ export class DBLiveKey
 			}
 			else {
 				const content = await this.lib.content()
-				const currentValue = content.getFromCache(this.key)
-				const value = await content.get(this.key, data.versionId)
+				const currentValue = content.getValueFromCache(this.key)
+				const result = await content.get(this.key, data.versionId)
+				const value = result ? (typeof(result.value) === "string" ? result.value : JSON.stringify(result.value)) : undefined
 
 				if (value && value !== currentValue) {
 					this.emitToListeners("changed", {
@@ -118,8 +119,9 @@ export class DBLiveKey
 
 			await socket.watch(this.key)
 
-			const currentValue = content.getFromCache(this.key)
-			const value = await content.refresh(this.key)
+			const currentValue = content.getValueFromCache(this.key)
+			const result = await content.refresh(this.key)
+			const value = result ? (typeof(result.value) === "string" ? result.value : JSON.stringify(result.value)) : undefined
 
 			if (value && value !== currentValue) {
 				this.emitToListeners("changed", {

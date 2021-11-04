@@ -230,4 +230,61 @@ describe("DBLiveClient", () => {
 			})
 		})
 	})
+	describe("#lock", () => {
+		it("locks a value until unlocked", async() => {
+			const key = `test/ts/lock-${uuidv1()}`
+			const expectedValueBeforeUnlock = "hello"
+			const expectedValueAfterUnlocked = "world"
+
+			const setResult = await dbLive.set(key, expectedValueBeforeUnlock)
+			expect(setResult).toBeTruthy()
+
+			const lock = await dbLive.lock(key, {
+				timeout: 5000,
+			})
+			expect(lock).not.toBeUndefined()
+			expect(lock.lockId).not.toBeUndefined()
+
+			void dbLive.set(key, expectedValueAfterUnlocked)
+
+			await new Promise<void>(resolve => setTimeout(() => resolve(), 500))
+
+			const getWhileLockedResult = await dbLive.get(key, {
+				bypassCache: true,
+			})
+
+			expect(getWhileLockedResult).toEqual(expectedValueBeforeUnlock)
+
+			const unlockResult = await lock.unlock()
+			expect(unlockResult).toBeTruthy()
+
+			await new Promise<void>(resolve => setTimeout(() => resolve(), 500))
+
+			const getAfterUnlockedResult = await dbLive.get(key, {
+				bypassCache: true,
+			})
+
+			expect(getAfterUnlockedResult).toEqual(expectedValueAfterUnlocked)
+		})
+	})
+	describe("#lockAndSet", () => {
+		it("appropriately sets a value", async() => {
+			const key = `test/ts/lockAndSet-${uuidv1()}`
+			const expectedValue = "hello"
+
+			const result = await dbLive.lockAndSet<string>(
+				key,
+				(currentValue: string|undefined): string => {
+					expect(currentValue).toBeUndefined()
+					return expectedValue
+				},
+			)
+
+			expect(result).toBeTruthy()
+
+			const actual = await dbLive.get(key)
+
+			expect(actual).toEqual(expectedValue)
+		})
+	})
 })

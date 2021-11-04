@@ -49,6 +49,30 @@ export class DBLiveSocket
 		})
 	}
 
+	async lock(key: string, options: DBLiveSocketLockOptions = {}): Promise<DBLiveSocketLockResult> {
+		this.logger.debug(`lock '${key}'`)
+
+		if (!await this.waitForConnection()) {
+			this.logger.warn(`cannot lock '${key}', socket disconnected`)
+
+			return {}
+		}
+
+		return await new Promise(resolve => {
+			this.socket.emit(
+				"lock",
+				{
+					key,
+					timeout: options.timeout,
+				},
+				(data: DBLiveSocketLockResult) => {
+					this.logger.debug("lock ack:", data)
+					resolve(data)
+				},
+			)
+		})
+	}
+
 	async meta(key: string): Promise<DBLiveSocketMetaResult> {
 		this.logger.debug(`meta '${key}'`)
 
@@ -91,6 +115,7 @@ export class DBLiveSocket
 					contentType: options.contentType,
 					customArgs: options.customArgs,
 					key,
+					lockId: options.lockId,
 				},
 				(data: DBLivePutResult) => {
 					this.logger.debug("put ack:", data)
@@ -117,6 +142,32 @@ export class DBLiveSocket
 				(data: DBLiveSocketStopWatchingResult) => {
 					this.logger.debug("stop watching ack:", data)
 					resolve()
+				},
+			)
+		})
+	}
+
+	async unlock(key: string, lockId: string): Promise<DBLiveSocketUnlockResult> {
+		this.logger.debug(`unlock '${key}', '${lockId}'`)
+
+		if (!await this.waitForConnection()) {
+			this.logger.warn(`cannot unlock '${key}', socket disconnected`)
+
+			return {
+				success: false,
+			}
+		}
+
+		return await new Promise(resolve => {
+			this.socket.emit(
+				"unlock",
+				{
+					key,
+					lockId,
+				},
+				(data: DBLiveSocketUnlockResult) => {
+					this.logger.debug("unlock ack:", data)
+					resolve(data)
 				},
 			)
 		})
@@ -286,6 +337,10 @@ export class DBLiveSocket
 	}
 }
 
+export const isSocketRedirectResult = (args: DBLiveSocketGetResult|DBLiveSocketGetRedirectResult): args is DBLiveSocketGetRedirectResult => {
+	return (args as DBLiveSocketGetRedirectResult).url !== undefined
+}
+
 export type KeyEventData = {
 	action: "changed"|"deleted"
 	contentEncoding?: string
@@ -304,17 +359,37 @@ export type DBLiveSocketGetResult = {
 	value?: string
 }
 
-export type DBLiveSocketMetaResult = {
-	etag?: string
-}
-
 export type DBLiveSocketGetRedirectResult = {
 	url?: string
+}
+
+export type DBLiveSocketLockOptions = {
+	timeout?: number
+}
+
+export type DBLiveSocketLockResult = {
+	lockId?: string
+}
+
+export type DBLiveSocketLockAndPutOptions = {
+	customArgs?: unknown
+}
+
+export type DBLiveSocketLockAndPutHandlerParams = {
+	contentType?: string
+	value?: string
+}
+
+export type DBLiveSocketLockAndPutResult = DBLivePutResult
+
+export type DBLiveSocketMetaResult = {
+	etag?: string
 }
 
 export type DBLiveSocketPutOptions = {
 	contentType: string
 	customArgs?: unknown
+	lockId?: string
 }
 
 export enum DBLiveSocketState {
@@ -327,8 +402,8 @@ export enum DBLiveSocketState {
 
 export type DBLiveSocketStopWatchingResult = Record<never, never>
 
-export type DBLiveSocketWatchResult = Record<never, never>
-
-export const isSocketRedirectResult = (args: DBLiveSocketGetResult|DBLiveSocketGetRedirectResult): args is DBLiveSocketGetRedirectResult => {
-	return (args as DBLiveSocketGetRedirectResult).url !== undefined
+export type DBLiveSocketUnlockResult = {
+	success: boolean
 }
+
+export type DBLiveSocketWatchResult = Record<never, never>
