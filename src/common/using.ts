@@ -1,6 +1,6 @@
 import { Disposable } from "./interfaces/disposable"
 
-export async function using<T extends Disposable, K>(resource: T, func: (resource: T) => Promise<K|undefined>|K|undefined) {
+export async function using<T extends Disposable, K>(resource: T, func: (resource: T) => Promise<K|undefined>|K|undefined): Promise<K|undefined> {
 	let result: K|undefined
 
 	try {
