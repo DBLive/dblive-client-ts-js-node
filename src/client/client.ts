@@ -6,7 +6,8 @@ import { using } from "../common/using"
 import { DBLiveContent, DBLiveContentType } from "../content/content"
 import { DBLiveKey } from "../key/key"
 import { DBLiveKeyEventListener } from "../key/key.eventlistener"
-import { DBLiveSocket } from "../socket/socket"
+import { DBLiveSocketManager } from "../socket/socket.manager"
+import { isSocketErrorResult } from "../socket/socket.types"
 import { DBLiveCallback } from "../types/dblive.callback"
 import { DBLiveLogger } from "../util/logger"
 import { DBLiveEventHandler } from "./eventhandler"
@@ -34,16 +35,16 @@ export class DBLiveClient implements Disposable
 
 			return this.content
 		},
-		async(): Promise<DBLiveSocket> => {
-			if (!this.socket) {
+		async(): Promise<DBLiveSocketManager> => {
+			if (!this.sockets) {
 				await this.connect()
 			}
 
-			return this.socket
+			return this.sockets
 		},
 	)
 	private readonly logger = new DBLiveLogger("DBLiveClient")
-	private socket?: DBLiveSocket
+	private sockets?: DBLiveSocketManager
 
 	constructor(
 		private readonly appKey: string,
@@ -52,17 +53,17 @@ export class DBLiveClient implements Disposable
 	async connect(): Promise<boolean> {
 		if (this.status !== DBLiveClientStatus.notConnected) {
 			if (this.status === DBLiveClientStatus.connecting) {
-				await new Promise<boolean>(resolve => this.once("connect", () => resolve(true)))
+				return await new Promise<boolean>(resolve => this.once("connect", () => resolve(true)))
 			}
-			else if (this.status === DBLiveClientStatus.connected) {
+			
+			if (this.status === DBLiveClientStatus.connected) {
 				// Nothing to do
-			}
-			else {
-				this.logger.error("Unhandled status:", this.status)
-				return false
+				return true
 			}
 
-			return true
+			this.logger.error("Unhandled status:", this.status)
+			
+			return false
 		}
 
 		this.status = DBLiveClientStatus.connecting
@@ -75,24 +76,26 @@ export class DBLiveClient implements Disposable
 
 		if (!initResult || isErrorResult(initResult) || !initResult.contentDomain) {
 			this.status = DBLiveClientStatus.notConnected
+			
 			this.handleEvent("error", {
 				error: new Error("DBLive Connection Error"),
 			})
 
 			return
 		}
+		
+		this.sockets = new DBLiveSocketManager(initResult.socketDomains, this.appKey, this, initResult.cookie)
 
-		this.connectSocket(`https://${initResult.socketDomain}/`, initResult.cookie)
 		this.content = new DBLiveContent(
 			this.appKey,
 			`https://${initResult.contentDomain}/`,
 			this.api,
-			this.socket,
+			this.sockets,
 			initResult.setEnv,
 		)
 
 		return await new Promise<boolean>(resolve => {
-			// todo: handle socket connecion errors
+			// @todo: handle socket connecion errors
 			this.once("socket-connected", () => {
 				this.status = DBLiveClientStatus.connected
 				setTimeout(() => this.handleEvent("connect"), 1)
@@ -102,8 +105,8 @@ export class DBLiveClient implements Disposable
 	}
 
 	dispose(): void {
-		if (this.socket) {
-			this.socket.dispose()
+		if (this.sockets) {
+			this.sockets.dispose()
 		}
 
 		for (const key in this.keys) {
@@ -111,7 +114,7 @@ export class DBLiveClient implements Disposable
 			delete this.keys[key]
 		}
 
-		this.socket = undefined
+		this.sockets = undefined
 		this.api = undefined
 		this.content = undefined
 		this.status = DBLiveClientStatus.notConnected
@@ -232,12 +235,12 @@ export class DBLiveClient implements Disposable
 
 		this.logger.debug(`lock(${key})`)
 
-		const lockResult = await this.socket.lock(key, {
+		const lockResult = await this.sockets.lock(key, {
 			timeout: options.timeout,
 		})
 
-		if (!lockResult.lockId) {
-			this.logger.error(`Could not lock '${key}', server didn't return lockId`)
+		if (isSocketErrorResult(lockResult) || !lockResult.lockId) {
+			this.logger.error(`Could not lock '${key}', server didn't return lockId. lockResult:`, lockResult)
 			throw new Error(`Could not successfully lock '${key}.'`)
 		}
 
@@ -376,12 +379,6 @@ export class DBLiveClient implements Disposable
 		)
 	}
 
-	private connectSocket(url: string, cookie: string|undefined) {
-		this.logger.debug("Connecting to Socket")
-
-		this.socket = new DBLiveSocket(url, this.appKey, this, cookie)
-	}
-
 	private async unlock(key: string, lockId: string): Promise<boolean> {
 		if (this.status !== DBLiveClientStatus.connected) {
 			await this.connect()
@@ -389,7 +386,12 @@ export class DBLiveClient implements Disposable
 
 		this.logger.debug(`unlock(${key})`)
 
-		const unlockResult = await this.socket.unlock(key, lockId)
+		const unlockResult = await this.sockets.unlock(key, lockId)
+
+		if (isSocketErrorResult(unlockResult)) {
+			this.logger.error(`Could not unlock '${key}'. Received error result:`, unlockResult)
+			return false
+		}
 
 		return unlockResult.success
 	}
@@ -414,7 +416,7 @@ export class DBLiveClientInternalLibrary
 {
 	constructor(
 		public content: () => Promise<DBLiveContent>,
-		public socket: () => Promise<DBLiveSocket>,
+		public socket: () => Promise<DBLiveSocketManager>,
 	) { }
 }
 

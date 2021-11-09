@@ -1,18 +1,21 @@
 import io, { ManagerOptions, Socket, SocketOptions } from "socket.io-client"
+import { v1 as uuidv1 } from "uuid"
 import { DBLiveClient } from "../client/client"
 import { DBLiveErrorResult, isErrorResult } from "../common/error.result"
 import { DBLivePutResult } from "../types/putresult"
 import { DBLiveLogger } from "../util/logger"
+import { DBLiveSocketGetRedirectResult, DBLiveSocketGetResult, DBLiveSocketLockOptions, DBLiveSocketLockResult, DBLiveSocketMetaResult, DBLiveSocketPutOptions, DBLiveSocketStopWatchingResult, DBLiveSocketUnlockResult, DBLiveSocketWatchResult, KeyEventData } from "./socket.types"
 
 export class DBLiveSocket
 {
 	public state = DBLiveSocketState.notConnected
 
+	private readonly id = uuidv1()
 	private readonly logger = new DBLiveLogger("DBLiveSocket")
 	private socket!: Socket
 
 	constructor(
-		private readonly url: string,
+		public readonly url: string,
 		private readonly appKey: string,
 		private readonly client: DBLiveClient,
 		private readonly cookie: string|undefined,
@@ -173,18 +176,6 @@ export class DBLiveSocket
 		})
 	}
 
-	async waitForConnection(): Promise<boolean> {
-		return await new Promise<boolean>(resolve => {
-			if (this.state === DBLiveSocketState.connected)
-				return resolve(true)
-			
-			if (this.state === DBLiveSocketState.notConnected)
-				return resolve(false)
-			
-			this.client.once("socket-connected", () => resolve(true))
-		})
-	}
-
 	async watch(key: string): Promise<void> {
 		this.logger.debug(`watch key '${key}'`)
 
@@ -208,10 +199,10 @@ export class DBLiveSocket
 		})
 	}
 
-	private connect(): void {
+	private connect(state: DBLiveSocketState.connecting|DBLiveSocketState.reconnecting = DBLiveSocketState.connecting): void {
 		this.logger.debug(`Connecting to socketUrl ${this.url} with cookie: ${this.cookie}`)
 
-		this.state = DBLiveSocketState.connecting
+		this.state = state
 
 		const socketOpts: Partial<ManagerOptions & SocketOptions> = {
 			forceNew: true,
@@ -264,14 +255,22 @@ export class DBLiveSocket
 						error: new Error(`Socket error '${data.code}': '${data.description}'`),
 					})
 
+					this.client.handleEvent(`socket-disconnected:${this.id}`)
+
 					return
 				}
 
 				this.logger.debug("appKey approved")
 
+				let socketConnectedEvent = "socket-reconnected"
+
+				if (this.state === DBLiveSocketState.connecting) {
+					socketConnectedEvent = "socket-connected"
+				}
+
 				this.state = DBLiveSocketState.connected
 
-				this.client.handleEvent("socket-connected")
+				this.client.handleEvent(socketConnectedEvent)
 			},
 		)
 	}
@@ -289,6 +288,8 @@ export class DBLiveSocket
 		this.client.handleEvent("error", {
 			error: err,
 		})
+
+		this.client.handleEvent(`socket-disconnected:${this.id}`)
 	}
 
 	private onDBLError(data: { error: DBLiveErrorResult }): void {
@@ -300,7 +301,7 @@ export class DBLiveSocket
 
 		if (this.state === DBLiveSocketState.reconnectOnDisconnect) {
 			this.logger.debug("reconnecting")
-			this.connect()
+			this.connect(DBLiveSocketState.reconnecting)
 		}
 		else if (reason === "ping timeout" || reason === "transport close" || reason === "transport error") {
 			this.logger.debug("automatically reconnecting")
@@ -309,6 +310,7 @@ export class DBLiveSocket
 		else {
 			this.logger.debug("completely disconnected")
 			this.state = DBLiveSocketState.notConnected
+			this.client.handleEvent(`socket-disconnected:${this.id}`)
 		}
 	}
 
@@ -335,61 +337,47 @@ export class DBLiveSocket
 
 		void this.client.reset()
 	}
-}
 
-export const isSocketRedirectResult = (args: DBLiveSocketGetResult|DBLiveSocketGetRedirectResult): args is DBLiveSocketGetRedirectResult => {
-	return (args as DBLiveSocketGetRedirectResult).url !== undefined
-}
+	private async waitForConnection(): Promise<boolean> {
+		return await new Promise<boolean>(resolve => {
+			if (this.state === DBLiveSocketState.connected)
+				return resolve(true)
+			
+			if (this.state === DBLiveSocketState.notConnected)
+				return resolve(false)
+			
+			let resultReturned = false
 
-export type KeyEventData = {
-	action: "changed"|"deleted"
-	contentEncoding?: string
-	contentType: string
-	customArgs?: { [id: string]: string|number }
-	etag?: string
-	key: string
-	oldValue?: string
-	value?: string
-	versionId?: string
-}
+			const socketEventListeners = [
+				this.client.once(`socket-disconnected:${this.id}`, () => returnResult(false)),
+			]
 
-export type DBLiveSocketGetResult = {
-	contentType?: string
-	etag?: string
-	value?: string
-}
+			const returnResult = (result: boolean): void => {
+				if (resultReturned)
+					return
+				
+				resultReturned = true
 
-export type DBLiveSocketGetRedirectResult = {
-	url?: string
-}
+				for (const eventListenerId of socketEventListeners) {
+					this.client.off(eventListenerId)
+				}
 
-export type DBLiveSocketLockOptions = {
-	timeout?: number
-}
+				resolve(result)
+			}
 
-export type DBLiveSocketLockResult = {
-	lockId?: string
-}
+			if (this.state === DBLiveSocketState.connecting) {
+				socketEventListeners.push(this.client.once("socket-connected", () => returnResult(true)))
+				return
+			}
+			
+			if (this.state === DBLiveSocketState.reconnecting || this.state === DBLiveSocketState.reconnectOnDisconnect) {
+				socketEventListeners.push(this.client.once("socket-reconnected", () => returnResult(true)))
+				return
+			}
 
-export type DBLiveSocketLockAndPutOptions = {
-	customArgs?: unknown
-}
-
-export type DBLiveSocketLockAndPutHandlerParams = {
-	contentType?: string
-	value?: string
-}
-
-export type DBLiveSocketLockAndPutResult = DBLivePutResult
-
-export type DBLiveSocketMetaResult = {
-	etag?: string
-}
-
-export type DBLiveSocketPutOptions = {
-	contentType: string
-	customArgs?: unknown
-	lockId?: string
+			return returnResult(false)
+		})
+	}
 }
 
 export enum DBLiveSocketState {
@@ -399,11 +387,3 @@ export enum DBLiveSocketState {
 	reconnecting,
 	reconnectOnDisconnect,
 }
-
-export type DBLiveSocketStopWatchingResult = Record<never, never>
-
-export type DBLiveSocketUnlockResult = {
-	success: boolean
-}
-
-export type DBLiveSocketWatchResult = Record<never, never>

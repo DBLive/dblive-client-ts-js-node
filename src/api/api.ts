@@ -93,7 +93,7 @@ type DBLiveAPIInitResult = {
 	apiDomain: string
 	contentDomain: string
 	setEnv?: "api"|"socket"
-	socketDomain: string
+	socketDomains: string[]
 }
 
 type DBLiveSetResult = {

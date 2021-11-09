@@ -1,5 +1,5 @@
 import { DBLiveClient, DBLiveClientInternalLibrary } from "../client/client"
-import { KeyEventData } from "../socket/socket"
+import { KeyEventData } from "../socket/socket.types"
 import { DBLiveLogger } from "../util/logger"
 import { DBLiveKeyEventHandlerArgs, DBLiveKeyEventListener } from "./key.eventlistener"
 
@@ -18,7 +18,7 @@ export class DBLiveKey
 	) {
 		void this.startWatching()
 
-		this.clientSocketReconnectListenerId = client.on("socket-connected", () => {
+		this.clientSocketReconnectListenerId = client.on("socket-reconnected", () => {
 			void this.restartSocketWatch()
 		})
 	}

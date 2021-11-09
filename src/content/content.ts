@@ -1,7 +1,8 @@
 import { DBLiveAPI } from "../api/api"
 import { isErrorResult } from "../common/error.result"
 import { DBLiveRequest, DBLiveRequestInit } from "../common/request"
-import { DBLiveSocket, DBLiveSocketState, isSocketRedirectResult } from "../socket/socket"
+import { DBLiveSocketManager } from "../socket/socket.manager"
+import { isSocketErrorResult, isSocketRedirectResult } from "../socket/socket.types"
 import { DBLiveLogger } from "../util/logger"
 
 export class DBLiveContent
@@ -14,7 +15,7 @@ export class DBLiveContent
 		private readonly appKey: string,
 		private readonly url: string,
 		private readonly api: DBLiveAPI,
-		private readonly socket?: DBLiveSocket,
+		private readonly sockets?: DBLiveSocketManager,
 		private readonly setEnv?: "api"|"socket",
 	) { }
 
@@ -40,7 +41,7 @@ export class DBLiveContent
 		
 		let rawResult: DBLiveContentGetRawResult|undefined
 
-		if (!versionId && this.socket.state !== DBLiveSocketState.notConnected) {
+		if (!versionId && this.sockets.isConnected) {
 			rawResult = await this.getFromSocket(key)
 		}
 		else {
@@ -78,8 +79,8 @@ export class DBLiveContent
 			return await this.get(key)
 		}
 
-		const serverMeta = await this.socket.meta(key),
-			serverEtag = serverMeta && serverMeta.etag
+		const serverMeta = await this.sockets.meta(key),
+			serverEtag = !isSocketErrorResult(serverMeta) && serverMeta.etag
 		
 		if (clientEtag === serverEtag) {
 			this.logger.debug("refresh complete - values hasn't changed")
@@ -108,8 +109,10 @@ export class DBLiveContent
 		this.setContentTypeCache(key, contentType)
 		this.deleteEtagCache(key)
 
-		if (this.setEnv === "socket") {
-			const result = await this.socket.put(
+		let doSetOnApi = true
+
+		if (this.setEnv === "socket" && this.sockets.isConnected) {
+			const result = await this.sockets.put(
 				key,
 				value,
 				{
@@ -118,10 +121,18 @@ export class DBLiveContent
 					lockId: options.lockId,
 				},
 			)
-			etag = result.etag
-			success = result.success
+
+			if (isSocketErrorResult(result)) {
+				this.logger.error(`Error setting '${key}', socket returned error:`, result)
+			}
+			else {
+				etag = result.etag
+				success = result.success
+				doSetOnApi = false
+			}
 		}
-		else {
+		
+		if (doSetOnApi) {
 			const result = await this.api.set(
 				key,
 				value,
@@ -168,7 +179,12 @@ export class DBLiveContent
 	private async getFromSocket(key: string): Promise<DBLiveContentGetRawResult|undefined> {
 		this.logger.debug(`getFromSocket '${key}'`)
 
-		const result = await this.socket.get(key)
+		const result = await this.sockets.get(key)
+
+		if (isSocketErrorResult(result)) {
+			this.logger.warn(`Error getting key '${key}' from socket. result:`, result)
+			return await this.getFromUrl(key)
+		}
 
 		if (isSocketRedirectResult(result)) {
 			this.logger.debug(`getFromSocket redirect result: ${result.url}`)

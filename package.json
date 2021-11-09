@@ -1,6 +1,6 @@
 {
   "name": "@dblive/client-js",
-  "version": "0.0.1-dev.39",
+  "version": "0.0.1-dev.40",
   "description": "DBLive client for TS/JS/Node.",
   "main": "./src/index.ts",
   "scripts": {
@@ -20,7 +20,8 @@
     "pretest:node": "npm run pretest",
     "publish": "echo \"no\" && exit 1",
     "test": "jest",
-    "test:node": "jest --config=./jest.config.node.js"
+    "test:node": "jest --config=./jest.config.node.js",
+    "test:node:detectopenhandles": "jest --config=./jest.config.node.js --detectOpenHandles"
   },
   "repository": {
     "type": "git",
