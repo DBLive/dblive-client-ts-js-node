@@ -199,6 +199,11 @@ export class DBLiveContent
 				this.logger.debug(`getFromSocket new etag: ${result.etag}`)
 				this.setEtagCache(key, result.etag)
 			}
+
+			if (result.contentType) {
+				this.logger.debug(`getFromSocket new content type: ${result.contentType}`)
+				this.setContentTypeCache(key, result.contentType)
+			}
 		}
 
 		return result.value ? {
