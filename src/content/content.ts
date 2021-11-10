@@ -251,6 +251,11 @@ export class DBLiveContent
 				this.logger.debug(`getFromUrl new etag: ${newEtag}`)
 				this.setEtagCache(key, newEtag)
 			}
+
+			if (contentType) {
+				this.logger.debug(`getFromUrl new content type: ${contentType}`)
+				this.setEtagCache(key, contentType)
+			}
 		}
 		else if (response.status === 304) {
 			this.logger.debug("getFromUrl 304 - returning cached version")
