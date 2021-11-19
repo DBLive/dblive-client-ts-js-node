@@ -104,6 +104,6 @@ type DBLiveSetResult = {
 
 export type DBLiveAPISetOptions = {
 	contentType: string
-	customArgs?: { [key: string]: string|number }
+	customArgs?: Record<string, string|number>
 	lockId: string
 }

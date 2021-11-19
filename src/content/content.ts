@@ -69,28 +69,47 @@ export class DBLiveContent
 		return this.storage.getItem(this.storageKeyFor(key))
 	}
 
-	async refresh<T>(key: string): Promise<DBLiveContentGetResult<T>|undefined> {
-		this.logger.debug(`refresh '${key}'`)
+	async refresh<T>(key: string): Promise<DBLiveContentRefreshResult<T>|undefined> {
+		this.logger.debug(`refresh('${key}')`)
 
 		const clientEtag = this.getEtagFromCache(key)
 		
 		if (!clientEtag) {
 			this.logger.debug("refresh invalid - nothing stored locally")
-			return await this.get(key)
+
+			const result = await this.get<T>(key)
+
+			return {
+				...result,
+				didChange: true,
+			}
 		}
 
 		const serverMeta = await this.sockets.meta(key),
 			serverEtag = !isSocketErrorResult(serverMeta) && serverMeta.etag
 		
 		if (clientEtag === serverEtag) {
-			this.logger.debug("refresh complete - values hasn't changed")
+			this.logger.debug("refresh complete - value hasn't changed")
 
-			return this.getFromCache(key)
+			return {
+				...this.getFromCache<T>(key),
+				didChange: false,
+			}
 		}
 
-		this.logger.debug(`refresh needs to update from server. serverEtag: '${serverEtag}', clientEtag: '${clientEtag}'`)
+		this.logger.debug(`refresh needed from server. serverEtag: '${serverEtag}', clientEtag: '${clientEtag}'`)
 
-		return await this.get(key)
+		const cachedValue = this.getFromCache<T>(key)
+		const result = await this.get<T>(key)
+
+		if (!result) {
+			return undefined
+		}
+
+		return {
+			...result,
+			didChange: cachedValue.stringValue !== result.stringValue,
+		}
 	}
 
 	async set<T>(key: string, value: T|string, contentType: DBLiveContentType, options: DBLiveContentSetOptions): Promise<boolean> {
@@ -286,30 +305,29 @@ export class DBLiveContent
 		if (!value)
 			return undefined
 
-		const result: DBLiveContentGetResult<T> = {
-			contentType: DBLiveContentType.string,
-			value,
-		}
-		
 		const contentTypeValueSplit = (contentType && contentType.split(";")) || []
 
 		for (const contentTypeValue of contentTypeValueSplit) {
 			if (contentTypeValue.trim().toLowerCase() === DBLiveContentType.json) {
 				try {
-					const jsonValue = JSON.parse(value) as T
-					result.value = jsonValue
-					result.contentType = DBLiveContentType.json
+					return {
+						contentType: DBLiveContentType.json,
+						stringValue: value,
+						value: JSON.parse(value) as T,
+					}
 				}
 				catch(err) {
 					this.logger.warn(`Could not json parse value. contentType: '${contentType}', value: '${value}'`, err)
-					result.contentType = DBLiveContentType.string
+					return undefined
 				}
-
-				break
 			}
 		}
-	
-		return result
+
+		return {
+			contentType: DBLiveContentType.string,
+			stringValue: value,
+			value: (value as unknown) as T,
+		}
 	}
 
 	private setCache(key: string, value: string): void {
@@ -380,12 +398,17 @@ class DBLiveContentLocalCacheStorage implements DBLiveContentCacheStorage
 
 type DBLiveContentGetResult<T> = {
 	contentType: DBLiveContentType
-	value: T|string
+	value: T
+	stringValue: string
 }
 
 type DBLiveContentGetRawResult = {
 	contentType?: string
-	value: string
+	value?: string
+}
+
+type DBLiveContentRefreshResult<T> = DBLiveContentGetResult<T> & {
+	didChange: boolean
 }
 
 type DBLiveContentSetOptions = {

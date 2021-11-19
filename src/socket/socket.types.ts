@@ -8,16 +8,12 @@ export const isSocketRedirectResult = (args: DBLiveSocketGetResult|DBLiveSocketG
 	return (args as DBLiveSocketGetRedirectResult).url !== undefined
 }
 
-export type KeyEventData = {
-	action: "changed"|"deleted"
-	contentEncoding?: string
-	contentType: string
-	customArgs?: { [id: string]: string|number }
-	etag?: string
-	key: string
-	oldValue?: string
-	value?: string
-	versionId?: string
+export const isSocketKeyChangedData = (args: DBLiveSocketKeyChangedData|DBLiveSocketKeyDeletedData): args is DBLiveSocketKeyChangedData => {
+	return (args as DBLiveSocketKeyChangedData).action === "changed"
+}
+
+export const isSocketKeyDeletedData = (args: DBLiveSocketKeyChangedData|DBLiveSocketKeyDeletedData): args is DBLiveSocketKeyDeletedData => {
+	return (args as DBLiveSocketKeyDeletedData).action === "deleted"
 }
 
 export type DBLiveSocketErrorResult = {
@@ -36,6 +32,23 @@ export type DBLiveSocketGetRedirectResult = {
 	url?: string
 }
 
+export type DBLiveSocketKeyChangedData = {
+	action: "changed"
+	contentEncoding?: string
+	contentType: string
+	customArgs?: Record<string, string|number>
+	etag?: string
+	key: string
+	value?: string
+	versionId?: string
+}
+
+export type DBLiveSocketKeyDeletedData = {
+	action: "deleted"
+	customArgs?: Record<string, string|number>
+	key: string
+}
+
 export type DBLiveSocketLockOptions = {
 	timeout?: number
 }
@@ -45,7 +58,7 @@ export type DBLiveSocketLockResult = {
 }
 
 export type DBLiveSocketLockAndPutOptions = {
-	customArgs?: unknown
+	customArgs?: Record<string, string|number>
 }
 
 export type DBLiveSocketLockAndPutHandlerParams = {

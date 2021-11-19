@@ -4,7 +4,7 @@ import { DBLiveClient } from "../client/client"
 import { DBLiveErrorResult, isErrorResult } from "../common/error.result"
 import { DBLivePutResult } from "../types/putresult"
 import { DBLiveLogger } from "../util/logger"
-import { DBLiveSocketGetRedirectResult, DBLiveSocketGetResult, DBLiveSocketLockOptions, DBLiveSocketLockResult, DBLiveSocketMetaResult, DBLiveSocketPutOptions, DBLiveSocketStopWatchingResult, DBLiveSocketUnlockResult, DBLiveSocketWatchResult, KeyEventData } from "./socket.types"
+import { DBLiveSocketGetRedirectResult, DBLiveSocketGetResult, DBLiveSocketKeyChangedData, DBLiveSocketKeyDeletedData, DBLiveSocketLockOptions, DBLiveSocketLockResult, DBLiveSocketMetaResult, DBLiveSocketPutOptions, DBLiveSocketStopWatchingResult, DBLiveSocketUnlockResult, DBLiveSocketWatchResult } from "./socket.types"
 
 export class DBLiveSocket
 {
@@ -132,7 +132,7 @@ export class DBLiveSocket
 		this.logger.debug(`stop watching key '${key}'`)
 
 		if (!await this.waitForConnection()) {
-			this.logger.warn(`cannot stop watching key '${key}', socket disconnected`)
+			this.logger.debug(`cannot stop watching key '${key}', socket disconnected`)
 			return
 		}
 
@@ -235,7 +235,7 @@ export class DBLiveSocket
 		this.socket.on("dbl-error", (data: { error: DBLiveErrorResult }) => this.onDBLError(data))
 		this.socket.on("disconnect", (reason: string) => this.onDisconnect(reason))
 		this.socket.on("error", (err: unknown) => this.onError(err))
-		this.socket.on("key", (data: KeyEventData) => this.onKey(data))
+		this.socket.on("key", (data: DBLiveSocketKeyChangedData|DBLiveSocketKeyDeletedData) => this.onKey(data))
 		this.socket.on("reset", () => this.onReset())
 	}
 
@@ -323,13 +323,13 @@ export class DBLiveSocket
 		}
 	}
 
-	private onKey(data: KeyEventData) {
+	private onKey(data: DBLiveSocketKeyChangedData|DBLiveSocketKeyDeletedData) {
 		this.logger.debug("key -", data)
 
 		if (!data.action || !data.key)
 			return
 
-		this.client.handleEvent(`key:${data.key}`, data)
+		this.client.handleEvent<DBLiveSocketKeyChangedData|DBLiveSocketKeyDeletedData>(`key:${data.key}`, data)
 	}
 
 	private onReset(): void {

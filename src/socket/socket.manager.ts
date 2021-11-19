@@ -26,9 +26,7 @@ export class DBLiveSocketManager implements Disposable
 	}
 
 	dispose() {
-		for (const socket of this.sockets) {
-			socket.dispose()
-		}
+		this.sockets.forEach(s => s.dispose())
 	}
 	
 	async get(key: string): Promise<DBLiveSocketGetResult|DBLiveSocketGetRedirectResult|DBLiveSocketErrorResult> {
@@ -65,7 +63,7 @@ export class DBLiveSocketManager implements Disposable
 			let finished = false
 			let numSocketsReturned = 0
 
-			const timeout: NodeJS.Timeout = setTimeout(() => {
+			const timeout = setTimeout(() => {
 				if (finished)
 					return
 

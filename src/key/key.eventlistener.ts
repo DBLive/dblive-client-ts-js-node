@@ -1,7 +1,7 @@
 import { Disposable } from "../common/interfaces/disposable"
 import { DBLiveCallback } from "../types/dblive.callback"
 
-export class DBLiveKeyEventListener implements Disposable
+export class DBLiveKeyEventListener<T> implements Disposable
 {
 	private _listening = true
 
@@ -9,7 +9,7 @@ export class DBLiveKeyEventListener implements Disposable
 
 	constructor(
 		readonly action: string,
-		readonly handler: DBLiveCallback<DBLiveKeyEventHandlerArgs>,
+		readonly handler: DBLiveCallback<DBLiveKeyEventHandlerArgs<T>>,
 	) { }
 
 	get listening(): boolean {
@@ -38,7 +38,8 @@ export class DBLiveKeyEventListener implements Disposable
 
 type ListeningChangedHandler = (listening: boolean) => unknown
 
-export type DBLiveKeyEventHandlerArgs = {
-	value: string|undefined
-	customArgs?: { [key: string]: string|number }
+export type DBLiveKeyEventHandlerArgs<T> = {
+	customArgs?: Record<string, string|number>
+	oldValue: T|undefined
+	value: T|undefined
 }
